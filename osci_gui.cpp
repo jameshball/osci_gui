@@ -1,0 +1,15 @@
+/*
+  ==============================================================================
+
+   This file is part of the osci-render GUI module
+   Copyright (c) 2026 James H Ball
+
+  ==============================================================================
+*/
+
+#include "osci_gui.h"
+
+#include "lookandfeel/osci_LookAndFeel.cpp"
+#include "components/osci_HoverAnimationMixin.cpp"
+#include "components/osci_GridItemComponent.cpp"
+#include "components/osci_GridComponent.cpp"
