@@ -10,6 +10,9 @@
 #pragma once
 
 #include <cmath>
+#include <memory>
+#include <optional>
+#include <vector>
 
 /*******************************************************************************
  The block below describes the properties of this module, and is read by
@@ -26,7 +29,7 @@
   license:           GPLv3
   minimumCppStandard: 20
 
-  dependencies:      juce_core, juce_graphics, juce_gui_basics, juce_gui_extra, juce_audio_processors, juce_animation
+  dependencies:      juce_core, juce_graphics, juce_gui_basics, juce_gui_extra, juce_audio_processors, juce_animation, melatonin_blur
 
  END_JUCE_MODULE_DECLARATION
 
@@ -38,9 +41,13 @@
 #include <juce_graphics/juce_graphics.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_gui_extra/juce_gui_extra.h>
+#include <melatonin_blur/melatonin_blur.h>
 
 #include "lookandfeel/osci_LookAndFeel.h"
+#include "lookandfeel/osci_OverlayLookAndFeel.h"
+#include "components/osci_ToggleAnimationController.h"
 #include "components/osci_HoverAnimationMixin.h"
+#include "components/osci_OverlayListBox.h"
 #include "components/osci_TextEditor.h"
 #include "components/osci_SvgButton.h"
 #include "components/osci_OverlayComponent.h"

@@ -3,10 +3,14 @@
 namespace osci {
 
 LookAndFeel::LookAndFeel()
-    : LookAndFeel (TypefaceData {}) {
+    : LookAndFeel (TypefaceData {}, true) {
 }
 
-LookAndFeel::LookAndFeel (TypefaceData typefaceData) {
+LookAndFeel::LookAndFeel (TypefaceData typefaceData)
+    : LookAndFeel (typefaceData, true) {
+}
+
+LookAndFeel::LookAndFeel (TypefaceData typefaceData, bool shouldSetAsDefaultLookAndFeel) {
     if (typefaceData.regularData != nullptr && typefaceData.regularSize > 0) {
         regularTypeface = juce::Typeface::createSystemTypefaceFor (typefaceData.regularData, typefaceData.regularSize);
     }
@@ -25,7 +29,9 @@ LookAndFeel::LookAndFeel (TypefaceData typefaceData) {
     getCurrentColourScheme().setUIColour(ColourScheme::widgetBackground, Colours::veryDark());
 
     // I have to do this, otherwise components are initialised before the look and feel is set
-    juce::LookAndFeel::setDefaultLookAndFeel(this);
+    if (shouldSetAsDefaultLookAndFeel) {
+        juce::LookAndFeel::setDefaultLookAndFeel(this);
+    }
 }
 
 LookAndFeel& LookAndFeel::getSharedInstance() {
@@ -133,7 +139,7 @@ void LookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
     g.setColour(baseColour);
     g.fillRoundedRectangle(label.getLocalBounds().toFloat(), Colours::kPillRadius);
 
-    if (! label.isBeingEdited())
+    if (!label.isBeingEdited())
     {
         auto alpha = label.isEnabled() ? 1.0f : 0.5f;
         const juce::Font font (getLabelFont (label));
@@ -182,7 +188,7 @@ void LookAndFeel::fillTextEditorBackground(juce::Graphics& g, int width, int hei
 void LookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height, juce::TextEditor& textEditor) {
     if (textEditor.isEnabled())
     {
-        if (textEditor.hasKeyboardFocus (true) && ! textEditor.isReadOnly())
+        if (textEditor.hasKeyboardFocus (true) && !textEditor.isReadOnly())
         {
             const float border = 1.0f;
             const float half = border * 0.5f;

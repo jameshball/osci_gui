@@ -10,6 +10,8 @@
 #include "osci_gui.h"
 
 #include "lookandfeel/osci_LookAndFeel.cpp"
+#include "lookandfeel/osci_OverlayLookAndFeel.cpp"
+#include "components/osci_ToggleAnimationController.cpp"
 #include "components/osci_HoverAnimationMixin.cpp"
 #include "components/osci_GridItemComponent.cpp"
 #include "components/osci_GridComponent.cpp"

@@ -13,7 +13,7 @@ public:
                               juce::dontSendNotification);
         messageLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.78f));
         messageLabel.setMinimumHorizontalScale (0.82f);
-        addAndMakeVisible (messageLabel);
+        addPanelContentAndMakeVisible (messageLabel);
 
         juce::StringArray licenseSteps;
         licenseSteps.add ("Open the download link from your Gumroad or Payhip email.");
@@ -24,12 +24,12 @@ public:
         stepsComponent.setAccentColour (Colours::accentColor());
         stepsComponent.setFont (juce::Font (juce::FontOptions (14.2f)));
         stepsComponent.setMetrics (28, 13, 21);
-        addAndMakeVisible (stepsComponent);
+        addPanelContentAndMakeVisible (stepsComponent);
 
         configureLabel (supportLabel, juce::Font (juce::FontOptions (13.0f)), juce::Justification::centred);
         supportLabel.setText ("Still stuck?", juce::dontSendNotification);
         supportLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.58f));
-        addAndMakeVisible (supportLabel);
+        addPanelContentAndMakeVisible (supportLabel);
 
         setupButton (discordButton,
                      "Join Discord",
@@ -80,7 +80,7 @@ private:
         button.onClick = [url] {
             url.launchInDefaultBrowser();
         };
-        addAndMakeVisible (button);
+        addPanelContentAndMakeVisible (button);
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LicenseHelpOverlay)

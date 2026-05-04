@@ -9,7 +9,7 @@ public:
     ~HoverAnimationMixin() override = default;
 
     // Animation control (available for programmatic triggers if needed)
-    void animateHover(bool isHovering);
+    void animateHover (bool isHovering);
 
     // Getters
     float getAnimationProgress() const { return animationProgress; }
@@ -18,27 +18,21 @@ public:
 protected:
     // Customization hooks
     virtual int getHoverAnimationDurationMs() const { return 120; }
-    virtual std::function<float(float)> getEasingFunction() const { return juce::Easings::createEaseOut(); }
+    virtual std::function<float (float)> getEasingFunction() const { return juce::Easings::createEaseOut(); }
 
 public:
     // juce::Component overrides for mouse events - keep public so children can call base explicitly
-    void mouseEnter(const juce::MouseEvent& event) override;
-    void mouseExit(const juce::MouseEvent& event) override;
-    void mouseDown(const juce::MouseEvent& event) override;
-    void mouseUp(const juce::MouseEvent& event) override;
+    void mouseEnter (const juce::MouseEvent& event) override;
+    void mouseExit (const juce::MouseEvent& event) override;
+    void mouseDown (const juce::MouseEvent& event) override;
+    void mouseUp (const juce::MouseEvent& event) override;
 
 private:
     float animationProgress = 0.0f;
     bool isHovered = false;
+    ToggleAnimationController animationController;
 
-    // Animation components
-    juce::VBlankAnimatorUpdater animatorUpdater;
-    juce::Animator hoverAnimator;
-    juce::Animator unhoverAnimator;
-
-    void setupAnimators();
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HoverAnimationMixin)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HoverAnimationMixin)
 };
 
 } // namespace osci
