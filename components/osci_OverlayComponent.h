@@ -2,6 +2,14 @@
 
 namespace osci {
 
+class OverlayComponent;
+
+class OverlayHost {
+public:
+    virtual ~OverlayHost() = default;
+    virtual void showOverlay(std::unique_ptr<OverlayComponent> overlay) = 0;
+};
+
 // Base class for full-window overlay panels. Subclasses populate the content
 // area; the overlay owns the backdrop, panel background, close button, and dismiss
 // callback.
@@ -58,6 +66,20 @@ public:
 
     std::function<void()> onDismissRequested;
     bool lightweight = false;
+
+    static OverlayComponent* show(juce::Component& parent, std::unique_ptr<OverlayComponent> overlay) {
+        jassert(overlay != nullptr);
+
+        auto* rawOverlay = overlay.get();
+        auto* host = findOverlayHost(parent);
+        if (host != nullptr) {
+            host->showOverlay(std::move(overlay));
+            return rawOverlay;
+        }
+
+        showUnmanaged(parent, std::move(overlay));
+        return rawOverlay;
+    }
 
     void requestDismiss() {
         dismiss();
@@ -271,6 +293,45 @@ protected:
     }
 
 private:
+    static OverlayHost* findOverlayHost(juce::Component& source) {
+        auto* component = &source;
+        while (component != nullptr) {
+            auto* host = dynamic_cast<OverlayHost*>(component);
+            if (host != nullptr) {
+                return host;
+            }
+
+            component = component->getParentComponent();
+        }
+
+        return nullptr;
+    }
+
+    static void showUnmanaged(juce::Component& parent, std::unique_ptr<OverlayComponent> overlay) {
+        auto* rawOverlay = overlay.release();
+        const juce::Component::SafePointer<OverlayComponent> safeOverlay(rawOverlay);
+        auto previousDismissCallback = std::move(rawOverlay->onDismissRequested);
+        rawOverlay->onDismissRequested = [safeOverlay, previousDismissCallback = std::move(previousDismissCallback)]() mutable {
+            if (safeOverlay == nullptr) {
+                return;
+            }
+
+            if (previousDismissCallback != nullptr) {
+                previousDismissCallback();
+            }
+
+            if (safeOverlay != nullptr) {
+                delete safeOverlay.getComponent();
+            }
+        };
+
+        rawOverlay->captureBackdropFrom(parent);
+        parent.addAndMakeVisible(*rawOverlay);
+        rawOverlay->setBounds(parent.getLocalBounds());
+        rawOverlay->toFront(false);
+        rawOverlay->grabKeyboardFocus();
+    }
+
     class ImageLayer final : public juce::Component {
     public:
         explicit ImageLayer (juce::String componentName,

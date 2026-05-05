@@ -51,6 +51,7 @@
 #include "components/osci_TextEditor.h"
 #include "components/osci_SvgButton.h"
 #include "components/osci_OverlayComponent.h"
+#include "components/osci_ErrorOverlay.h"
 #include "components/osci_NumberedStepsComponent.h"
 #include "components/osci_LicenseHelpOverlay.h"
 #include "components/osci_ScrollFadeOverlay.h"
