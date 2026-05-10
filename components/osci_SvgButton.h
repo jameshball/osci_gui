@@ -2,6 +2,28 @@
 
 namespace osci {
 
+namespace Svg {
+    inline void applyFill(juce::XmlElement* xml, juce::Colour colour) {
+        if (xml == nullptr) {
+            return;
+        }
+
+        for (auto* xmlNode : xml->getChildIterator()) {
+            xmlNode->setAttribute("fill", '#' + colour.toDisplayString(false));
+        }
+    }
+
+    inline std::unique_ptr<juce::Drawable> createDrawable(juce::String svg, juce::Colour colour) {
+        auto doc = juce::XmlDocument::parse(svg);
+        if (doc == nullptr) {
+            return nullptr;
+        }
+
+        applyFill(doc.get(), colour);
+        return juce::Drawable::createFromSVG(*doc);
+    }
+}
+
 class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParameter::Listener, public juce::AsyncUpdater {
  public:
     SvgButton(juce::String name, juce::String svg, juce::Colour colour, juce::Colour colourOn, juce::AudioProcessorParameter* toggle = nullptr, juce::String toggledSvg = "") : juce::DrawableButton(name, juce::DrawableButton::ButtonStyle::ImageFitted), toggle(toggle), updater(this), svgSource(svg) {
@@ -10,36 +32,36 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
             return;
         }
 
-        changeSvgColour(doc.get(), colour);
+        Svg::applyFill(doc.get(), colour);
         normalImage = juce::Drawable::createFromSVG(*doc);
-        changeSvgColour(doc.get(), colour.withBrightness(0.7f));
+        Svg::applyFill(doc.get(), colour.withBrightness(0.7f));
         overImage = juce::Drawable::createFromSVG(*doc);
-        changeSvgColour(doc.get(), colour.withBrightness(0.5f));
+        Svg::applyFill(doc.get(), colour.withBrightness(0.5f));
         downImage = juce::Drawable::createFromSVG(*doc);
-        changeSvgColour(doc.get(), colour.withBrightness(0.3f));
+        Svg::applyFill(doc.get(), colour.withBrightness(0.3f));
         disabledImage = juce::Drawable::createFromSVG(*doc);
 
         // If a toggled SVG is provided, use it for the "on" state images
         if (toggledSvg.isNotEmpty()) {
             auto toggledDoc = juce::XmlDocument::parse(toggledSvg);
             if (toggledDoc != nullptr) {
-                changeSvgColour(toggledDoc.get(), colourOn);
+                Svg::applyFill(toggledDoc.get(), colourOn);
                 normalImageOn = juce::Drawable::createFromSVG(*toggledDoc);
-                changeSvgColour(toggledDoc.get(), colourOn.withBrightness(0.7f));
+                Svg::applyFill(toggledDoc.get(), colourOn.withBrightness(0.7f));
                 overImageOn = juce::Drawable::createFromSVG(*toggledDoc);
-                changeSvgColour(toggledDoc.get(), colourOn.withBrightness(0.5f));
+                Svg::applyFill(toggledDoc.get(), colourOn.withBrightness(0.5f));
                 downImageOn = juce::Drawable::createFromSVG(*toggledDoc);
-                changeSvgColour(toggledDoc.get(), colourOn.withBrightness(0.15f));
+                Svg::applyFill(toggledDoc.get(), colourOn.withBrightness(0.15f));
                 disabledImageOn = juce::Drawable::createFromSVG(*toggledDoc);
             }
         } else {
-            changeSvgColour(doc.get(), colourOn);
+            Svg::applyFill(doc.get(), colourOn);
             normalImageOn = juce::Drawable::createFromSVG(*doc);
-            changeSvgColour(doc.get(), colourOn.withBrightness(0.7f));
+            Svg::applyFill(doc.get(), colourOn.withBrightness(0.7f));
             overImageOn = juce::Drawable::createFromSVG(*doc);
-            changeSvgColour(doc.get(), colourOn.withBrightness(0.5f));
+            Svg::applyFill(doc.get(), colourOn.withBrightness(0.5f));
             downImageOn = juce::Drawable::createFromSVG(*doc);
-            changeSvgColour(doc.get(), colourOn.withBrightness(0.15f));
+            Svg::applyFill(doc.get(), colourOn.withBrightness(0.15f));
             disabledImageOn = juce::Drawable::createFromSVG(*doc);
         }
 
@@ -158,12 +180,6 @@ private:
 
     juce::String svgSource;
 
-    void changeSvgColour(juce::XmlElement* xml, juce::Colour colour) {
-        for (auto* xmlNode : xml->getChildIterator()) {
-            xmlNode->setAttribute("fill", '#' + colour.toDisplayString(false));
-        }
-    }
-
 public:
     // Allows callers to adjust the placement/scale/rotation of the SVG within the button.
     void setImageTransform(const juce::AffineTransform& t) {
@@ -186,14 +202,17 @@ public:
     // Rebuild the "on" state images with a new colour.
     void setOnColour(juce::Colour colourOn) {
         auto doc = juce::XmlDocument::parse(svgSource);
-        if (doc == nullptr) return;
-        changeSvgColour(doc.get(), colourOn);
+        if (doc == nullptr) {
+            return;
+        }
+
+        Svg::applyFill(doc.get(), colourOn);
         normalImageOn = juce::Drawable::createFromSVG(*doc);
-        changeSvgColour(doc.get(), colourOn.withBrightness(0.7f));
+        Svg::applyFill(doc.get(), colourOn.withBrightness(0.7f));
         overImageOn = juce::Drawable::createFromSVG(*doc);
-        changeSvgColour(doc.get(), colourOn.withBrightness(0.5f));
+        Svg::applyFill(doc.get(), colourOn.withBrightness(0.5f));
         downImageOn = juce::Drawable::createFromSVG(*doc);
-        changeSvgColour(doc.get(), colourOn.withBrightness(0.3f));
+        Svg::applyFill(doc.get(), colourOn.withBrightness(0.3f));
         disabledImageOn = juce::Drawable::createFromSVG(*doc);
         setImages(normalImage.get(), overImage.get(), downImage.get(), disabledImage.get(),
                   normalImageOn.get(), overImageOn.get(), downImageOn.get(), disabledImageOn.get());
