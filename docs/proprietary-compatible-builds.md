@@ -19,6 +19,8 @@ In this mode, `osci_gui` code should:
 - keep reusable APIs independent of osci-render application-only UI and asset assumptions
 - continue to allow permissively licensed dependencies where their license terms permit proprietary use
 
+Project-owned assets may remain available in proprietary-compatible builds; only assets with unclear or incompatible rights should be excluded, replaced, or separately licensed.
+
 When `OSCI_PROPRIETARY_BUILD` is unset or `0`, GPL osci-render builds may continue to use GPL-compatible dependencies and GPL-distributed application assets.
 
 ## Optional Features

@@ -17,29 +17,6 @@
 #include "WideBlurFragmentShader.glsl"
 #include "WideBlurVertexShader.glsl"
 
-#if OSCI_PROPRIETARY_BUILD
-namespace {
-juce::Image createFallbackTextureImage(juce::Colour colour, bool addNoise = false) {
-    constexpr int imageSize = 512;
-    juce::Image image(juce::Image::ARGB, imageSize, imageSize, true);
-    juce::Graphics g(image);
-    g.fillAll(colour);
-
-    if (addNoise) {
-        juce::Random random(0x05c1);
-        for (int y = 0; y < imageSize; ++y) {
-            for (int x = 0; x < imageSize; ++x) {
-                const auto value = random.nextFloat() * 0.04f;
-                image.setPixelAt(x, y, juce::Colour::fromFloatRGBA(0.0f, value, 0.0f, 1.0f));
-            }
-        }
-    }
-
-    return image;
-}
-}
-#endif
-
 VisualiserRenderer::VisualiserRenderer(
     VisualiserParameters &parameters,
     osci::AudioBackgroundThreadManager &threadManager,
@@ -224,8 +201,8 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
 
         sampleBufferCount++;
 
-        if (parameters.getUpsamplingEnabled()) {
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
+        if (parameters.getUpsamplingEnabled()) {
             int newResampledSize = xSamples.size() * RESAMPLE_RATIO;
 
             smoothedXSamples.resize(newResampledSize);
@@ -264,8 +241,8 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
                 if (!gSamples.empty()) gResampler.process(gSamples.data(), smoothedGSamples.data(), (int) gSamples.size());
                 if (!bSamples.empty()) bResampler.process(bSamples.data(), smoothedBSamples.data(), (int) bSamples.size());
             }
-#endif
         }
+#endif
     }
 
     // this just triggers a repaint
@@ -1224,29 +1201,17 @@ Texture VisualiserRenderer::createReflectionTexture() {
 
     if (parameters.getScreenOverlay() == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayReflectionImage.isNull()) {
-#if !OSCI_PROPRIETARY_BUILD
             vectorDisplayReflectionImage = juce::ImageFileFormat::loadFrom(BinaryData::vector_display_reflection_png, BinaryData::vector_display_reflection_pngSize);
-#else
-            vectorDisplayReflectionImage = createFallbackTextureImage(juce::Colours::transparentBlack);
-#endif
         }
         reflectionOpenGLTexture.loadImage(vectorDisplayReflectionImage);
     } else if (parameters.getScreenOverlay() == ScreenOverlay::Real) {
         if (oscilloscopeReflectionImage.isNull()) {
-#if !OSCI_PROPRIETARY_BUILD
             oscilloscopeReflectionImage = juce::ImageFileFormat::loadFrom(BinaryData::real_reflection_png, BinaryData::real_reflection_pngSize);
-#else
-            oscilloscopeReflectionImage = createFallbackTextureImage(juce::Colours::transparentBlack);
-#endif
         }
         reflectionOpenGLTexture.loadImage(oscilloscopeReflectionImage);
     } else {
         if (emptyReflectionImage.isNull()) {
-#if !OSCI_PROPRIETARY_BUILD
             emptyReflectionImage = juce::ImageFileFormat::loadFrom(BinaryData::no_reflection_jpg, BinaryData::no_reflection_jpgSize);
-#else
-            emptyReflectionImage = createFallbackTextureImage(juce::Colours::transparentBlack);
-#endif
         }
         reflectionOpenGLTexture.loadImage(emptyReflectionImage);
     }
@@ -1262,40 +1227,24 @@ Texture VisualiserRenderer::createScreenTexture() {
 
     if (screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule) {
         if (screenTextureImage.isNull()) {
-#if !OSCI_PROPRIETARY_BUILD
             screenTextureImage = juce::ImageFileFormat::loadFrom(BinaryData::noise_jpg, BinaryData::noise_jpgSize);
-#else
-            screenTextureImage = createFallbackTextureImage(juce::Colours::black, true);
-#endif
         }
         screenOpenGLTexture.loadImage(screenTextureImage);
 #if OSCI_PREMIUM
     } else if (screenOverlay == ScreenOverlay::Real) {
         if (oscilloscopeImage.isNull()) {
-#if !OSCI_PROPRIETARY_BUILD
             oscilloscopeImage = juce::ImageFileFormat::loadFrom(BinaryData::real_png, BinaryData::real_pngSize);
-#else
-            oscilloscopeImage = createFallbackTextureImage(juce::Colours::black);
-#endif
         }
         screenOpenGLTexture.loadImage(oscilloscopeImage);
     } else if (screenOverlay == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayImage.isNull()) {
-#if !OSCI_PROPRIETARY_BUILD
             vectorDisplayImage = juce::ImageFileFormat::loadFrom(BinaryData::vector_display_png, BinaryData::vector_display_pngSize);
-#else
-            vectorDisplayImage = createFallbackTextureImage(juce::Colours::black);
-#endif
         }
         screenOpenGLTexture.loadImage(vectorDisplayImage);
 #endif
     } else {
         if (emptyScreenImage.isNull()) {
-#if !OSCI_PROPRIETARY_BUILD
             emptyScreenImage = juce::ImageFileFormat::loadFrom(BinaryData::empty_jpg, BinaryData::empty_jpgSize);
-#else
-            emptyScreenImage = createFallbackTextureImage(juce::Colours::black);
-#endif
         }
         screenOpenGLTexture.loadImage(emptyScreenImage);
     }
