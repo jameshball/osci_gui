@@ -29,6 +29,8 @@ The base `osci_gui` module should avoid compiling optional feature code by defau
 - Projects enabling the visualiser must include its optional module dependencies, currently `osci_render_core` and JUCE OpenGL support.
 - Set `OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING=1` to enable ChowDSP-backed upsampling for visualiser code.
 
+Flag defaults and proprietary-mode conflicts are centralized in `../osci_gui_config.h`. Visualiser-specific dependency checks live in the visualiser support headers.
+
 The ChowDSP feature flag must remain off in proprietary-compatible builds unless that dependency is separately cleared for proprietary use and the guard is intentionally updated.
 
 Project-owned code and assets may be added to this module over time. Bundled or app-provided assets still need clear commercial-use provenance for proprietary products.

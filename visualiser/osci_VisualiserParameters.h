@@ -1,29 +1,6 @@
 #pragma once
 
-#ifndef OSCI_GUI_ENABLE_VISUALISER
-#define OSCI_GUI_ENABLE_VISUALISER 0
-#endif
-
-#if !OSCI_GUI_ENABLE_VISUALISER
-#error "Define OSCI_GUI_ENABLE_VISUALISER=1 before including osci_gui visualiser headers."
-#endif
-
-#ifndef OSCI_PROPRIETARY_BUILD
-#define OSCI_PROPRIETARY_BUILD 0
-#endif
-
-#ifndef OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
-#define OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING 0
-#endif
-
-#if OSCI_PROPRIETARY_BUILD && OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
-#error "OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING cannot be enabled in OSCI_PROPRIETARY_BUILD."
-#endif
-
-#if !__has_include(<osci_render_core/osci_render_core.h>)
-#error "OSCI_GUI_ENABLE_VISUALISER=1 requires the osci_render_core module in the consuming project."
-#endif
-#include <osci_render_core/osci_render_core.h>
+#include "osci_VisualiserConfig.h"
 
 enum class ScreenOverlay : int {
     INVALID = -1,
