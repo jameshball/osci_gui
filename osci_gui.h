@@ -14,6 +14,22 @@
 #include <optional>
 #include <vector>
 
+#ifndef OSCI_PROPRIETARY_BUILD
+#define OSCI_PROPRIETARY_BUILD 0
+#endif
+
+#ifndef OSCI_GUI_ENABLE_VISUALISER
+#define OSCI_GUI_ENABLE_VISUALISER 0
+#endif
+
+#ifndef OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
+#define OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING 0
+#endif
+
+#if OSCI_PROPRIETARY_BUILD && OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
+#error "OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING cannot be enabled in OSCI_PROPRIETARY_BUILD."
+#endif
+
 /*******************************************************************************
  The block below describes the properties of this module, and is read by
  the Projucer to automatically generate project code that uses it.
