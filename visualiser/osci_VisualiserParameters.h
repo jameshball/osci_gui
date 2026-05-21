@@ -8,7 +8,7 @@ enum class ScreenOverlay : int {
     Graticule = 2,
     Smudged = 3,
     SmudgedGraticule = 4,
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     Real = 5,
     VectorDisplay = 6,
     MAX = 6,
@@ -31,7 +31,7 @@ public:
                 return "Smudged";
             case ScreenOverlay::SmudgedGraticule:
                 return "Smudged Graticule";
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
             case ScreenOverlay::Real:
                 return "Real Oscilloscope";
             case ScreenOverlay::VectorDisplay:
@@ -52,7 +52,7 @@ public:
             unnormalisedValue = (int)ScreenOverlay::Smudged;
         } else if (text == "Smudged Graticule") {
             unnormalisedValue = (int)ScreenOverlay::SmudgedGraticule;
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         } else if (text == "Real Oscilloscope") {
             unnormalisedValue = (int)ScreenOverlay::Real;
         } else if (text == "Vector Display") {
@@ -72,7 +72,7 @@ public:
         setValueNotifyingHost(getValueForText(xml->getStringAttribute("screenOverlay")));
     }
     
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     bool isRealisticDisplay() {
         ScreenOverlay type = (ScreenOverlay)(int)getValueUnnormalised();
         return type == ScreenOverlay::Real || type == ScreenOverlay::VectorDisplay;
@@ -83,7 +83,7 @@ public:
 class VisualiserParameters {
 public:
     VisualiserParameters() {
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         scaleEffect->markLockable(true);
         booleans.push_back(scaleEffect->linked);
 #endif
@@ -110,7 +110,7 @@ public:
         return lineSaturationEffect->getActualValue();
     }
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     double getScreenSaturation() {
         return screenSaturationEffect->getActualValue();
     }
@@ -202,7 +202,7 @@ public:
     osci::BooleanParameter* visualiserFullScreen = new osci::BooleanParameter("Visualiser Fullscreen", "visualiserFullScreen", VERSION_HINT, false, "Makes the software visualiser fullscreen.");
     osci::BooleanParameter* visualiserPaused = new osci::BooleanParameter("Visualiser Paused", "visualiserPaused", VERSION_HINT, false, "Pauses the visualiser rendering.");
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     osci::BooleanParameter* flipVertical = new osci::BooleanParameter("Flip Vertical", "flipVertical", VERSION_HINT, false, "Flips the visualiser vertically.");
     osci::BooleanParameter* flipHorizontal = new osci::BooleanParameter("Flip Horizontal", "flipHorizontal", VERSION_HINT, false, "Flips the visualiser horizontally.");
     osci::BooleanParameter* goniometer = new osci::BooleanParameter("Goniometer", "goniometer", VERSION_HINT, false, "Rotates the visualiser to replicate a goniometer display to show the phase relationship between two channels.");
@@ -372,7 +372,7 @@ public:
         ambientEffect,
         sweepMsEffect,
         triggerValueEffect,
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         afterglowEffect,
         screenSaturationEffect,
         screenHueEffect,
@@ -381,7 +381,7 @@ public:
     };
     std::vector<std::shared_ptr<osci::Effect>> audioEffects = {
         smoothEffect,
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         stereoEffect,
         scaleEffect,
         offsetEffect,
@@ -394,7 +394,7 @@ public:
         visualiserFullScreen,
         visualiserPaused,
         sweepEnabled,
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         flipVertical,
         flipHorizontal,
         goniometer,

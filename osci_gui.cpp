@@ -15,6 +15,8 @@
 #include "components/osci_HoverAnimationMixin.cpp"
 #include "components/osci_GridItemComponent.cpp"
 #include "components/osci_GridComponent.cpp"
+#include "components/osci_CustomTooltipWindow.cpp"
+#include "components/osci_DownloaderComponent.cpp"
 #if OSCI_GUI_ENABLE_VISUALISER
 #include "visualiser/osci_VisualiserRenderer.cpp"
 #endif

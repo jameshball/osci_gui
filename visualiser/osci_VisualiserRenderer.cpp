@@ -17,6 +17,66 @@
 #include "WideBlurFragmentShader.glsl"
 #include "WideBlurVertexShader.glsl"
 
+#include <utility>
+
+namespace {
+
+juce::Image loadAssetOrFallback(const std::function<juce::Image()>& loader, juce::Image fallback) {
+    if (loader != nullptr) {
+        auto image = loader();
+        if (!image.isNull()) {
+            return image;
+        }
+    }
+
+    return fallback;
+}
+
+juce::Image createFallbackScreenTextureImage(juce::Colour base, juce::Colour lineColour, bool noisy) {
+    constexpr int size = 512;
+    juce::Image image(juce::Image::ARGB, size, size, true);
+    juce::Graphics g(image);
+    g.fillAll(base);
+
+    if (noisy) {
+        juce::Random random(0x504d5343);
+        for (int y = 0; y < size; y += 2) {
+            for (int x = 0; x < size; x += 2) {
+                const float alpha = 0.015f + random.nextFloat() * 0.04f;
+                g.setColour(lineColour.withAlpha(alpha));
+                g.fillRect(x, y, 2, 2);
+            }
+        }
+    }
+
+    g.setColour(lineColour.withAlpha(0.18f));
+    g.drawRect(image.getBounds(), 2);
+    g.setColour(lineColour.withAlpha(0.08f));
+    g.drawEllipse(56.0f, 56.0f, size - 112.0f, size - 112.0f, 1.5f);
+    g.drawLine(size / 2.0f, 40.0f, size / 2.0f, size - 40.0f, 1.0f);
+    g.drawLine(40.0f, size / 2.0f, size - 40.0f, size / 2.0f, 1.0f);
+    return image;
+}
+
+juce::Image createFallbackReflectionTextureImage() {
+    constexpr int size = 512;
+    juce::Image image(juce::Image::ARGB, size, size, true);
+    juce::Graphics g(image);
+    juce::ColourGradient gradient(
+        juce::Colours::transparentBlack,
+        0.0f,
+        0.0f,
+        juce::Colours::black.withAlpha(0.35f),
+        0.0f,
+        static_cast<float>(size),
+        false);
+    g.setGradientFill(gradient);
+    g.fillAll();
+    return image;
+}
+
+}
+
 VisualiserRenderer::VisualiserRenderer(
     VisualiserParameters &parameters,
     osci::AudioBackgroundThreadManager &threadManager,
@@ -42,6 +102,20 @@ VisualiserRenderer::~VisualiserRenderer() {
     setShouldBeRunning(false, [this] { renderingSemaphore.release(); });
     mirrorTimer.reset();
     openGLContext.detach();
+}
+
+void VisualiserRenderer::setAssets(VisualiserRendererAssets newAssets) {
+    assets = std::move(newAssets);
+    screenTextureImage = {};
+    emptyScreenImage = {};
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    oscilloscopeImage = {};
+    vectorDisplayImage = {};
+    emptyReflectionImage = {};
+    oscilloscopeReflectionImage = {};
+    vectorDisplayReflectionImage = {};
+#endif
+    screenOverlay = ScreenOverlay::INVALID;
 }
 
 void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
@@ -92,7 +166,7 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
         for (auto &effect : parameters.audioEffects)
             effect->processBlock(effectBuffer, midiMessages);
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         // Apply horizontal/vertical flip to the entire buffer
         if (parameters.isFlippedHorizontal()) {
             juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(0), tempBuffer.getReadPointer(0), numSamples);
@@ -149,7 +223,7 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
                 }
             };
             
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
             if (parameters.isGoniometer()) {
                 // x and y go to a diagonal currently, so we need to scale them down, and rotate them
                 const float xScale = -1.0f / std::sqrt(2.0f);
@@ -370,7 +444,7 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     wideBlurShader->addFragmentShader(wideBlurFragmentShader);
     wideBlurShader->link();
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     glowShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     glowShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(glowVertexShader));
     glowShader->addFragmentShader(glowFragmentShader);
@@ -415,7 +489,7 @@ void VisualiserRenderer::openGLContextClosing() {
     glDeleteTextures(1, &renderTexture.id);
     screenOpenGLTexture.release();
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     glDeleteTextures(1, &glowTexture.id);
     reflectionOpenGLTexture.release();
     glowShader.reset();
@@ -695,7 +769,7 @@ void VisualiserRenderer::setupTextures(int resolution) {
 
     screenTexture = createScreenTexture();
     
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     glowTexture = makeTexture(512, 512);
     reflectionTexture = createReflectionTexture();
 #endif
@@ -1010,7 +1084,7 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
     lineShader->setUniform("uNEdges", (GLfloat)nEdges);
     setOffsetAndScale(lineShader.get());
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     lineShader->setUniform("uFishEye", screenOverlay == ScreenOverlay::VectorDisplay ? VECTOR_DISPLAY_FISH_EYE : 0.0f);
     lineShader->setUniform("uShutterSync", parameters.getShutterSync());
 #else
@@ -1036,7 +1110,7 @@ void VisualiserRenderer::fade() {
 
     setNormalBlending();
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     setShader(afterglowShader.get());
     afterglowShader->setUniform("fadeAmount", fadeAmount);
     afterglowShader->setUniform("afterglowAmount", (float)parameters.getAfterglow());
@@ -1123,7 +1197,7 @@ void VisualiserRenderer::drawCRT() {
     drawTexture({blur4Texture});
     checkGLErrors(__FILE__, __LINE__);
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     if (parameters.screenOverlay->isRealisticDisplay()) {
         // create glow texture
         activateTargetTexture(glowTexture);
@@ -1139,7 +1213,7 @@ void VisualiserRenderer::drawCRT() {
     // Lower exposure slightly for RGB pipeline (previous mono calibration was higher)
     outputShader->setUniform("uExposure", 0.18f);
     outputShader->setUniform("uLineSaturation", (float)parameters.getLineSaturation());
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     outputShader->setUniform("uScreenSaturation", (float)parameters.getScreenSaturation());
     outputShader->setUniform("uHueShift", (float)parameters.getScreenHue() / 360.0f);
     outputShader->setUniform("uOverexposure", (float)parameters.getOverexposure());
@@ -1157,7 +1231,7 @@ void VisualiserRenderer::drawCRT() {
         outputShader->setUniform("uBeamColor", lineColour.getFloatRed(), lineColour.getFloatGreen(), lineColour.getFloatBlue());
     }
     setOffsetAndScale(outputShader.get());
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     outputShader->setUniform("uFishEye", screenOverlay == ScreenOverlay::VectorDisplay ? VECTOR_DISPLAY_FISH_EYE : 0.0f);
     outputShader->setUniform("uRealScreen", parameters.screenOverlay->isRealisticDisplay() ? 1.0f : 0.0f);
 #else
@@ -1171,7 +1245,7 @@ void VisualiserRenderer::drawCRT() {
         blur1Texture,
         blur3Texture,
         screenTexture,
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         reflectionTexture,
         glowTexture,
 #endif
@@ -1182,7 +1256,7 @@ void VisualiserRenderer::drawCRT() {
 void VisualiserRenderer::setOffsetAndScale(juce::OpenGLShaderProgram *shader) {
     osci::Point offset;
     osci::Point scale = {1.0f};
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     if (parameters.getScreenOverlay() == ScreenOverlay::Real) {
         offset = REAL_SCREEN_OFFSET;
         scale = REAL_SCREEN_SCALE;
@@ -1195,23 +1269,23 @@ void VisualiserRenderer::setOffsetAndScale(juce::OpenGLShaderProgram *shader) {
     shader->setUniform("uScale", (float)scale.x, (float)scale.y);
 }
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
 Texture VisualiserRenderer::createReflectionTexture() {
     using namespace juce::gl;
 
     if (parameters.getScreenOverlay() == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayReflectionImage.isNull()) {
-            vectorDisplayReflectionImage = juce::ImageFileFormat::loadFrom(BinaryData::vector_display_reflection_png, BinaryData::vector_display_reflection_pngSize);
+            vectorDisplayReflectionImage = loadAssetOrFallback(assets.vectorDisplayReflection, createFallbackReflectionTextureImage());
         }
         reflectionOpenGLTexture.loadImage(vectorDisplayReflectionImage);
     } else if (parameters.getScreenOverlay() == ScreenOverlay::Real) {
         if (oscilloscopeReflectionImage.isNull()) {
-            oscilloscopeReflectionImage = juce::ImageFileFormat::loadFrom(BinaryData::real_reflection_png, BinaryData::real_reflection_pngSize);
+            oscilloscopeReflectionImage = loadAssetOrFallback(assets.realReflection, createFallbackReflectionTextureImage());
         }
         reflectionOpenGLTexture.loadImage(oscilloscopeReflectionImage);
     } else {
         if (emptyReflectionImage.isNull()) {
-            emptyReflectionImage = juce::ImageFileFormat::loadFrom(BinaryData::no_reflection_jpg, BinaryData::no_reflection_jpgSize);
+            emptyReflectionImage = loadAssetOrFallback(assets.emptyReflection, createFallbackReflectionTextureImage());
         }
         reflectionOpenGLTexture.loadImage(emptyReflectionImage);
     }
@@ -1227,24 +1301,32 @@ Texture VisualiserRenderer::createScreenTexture() {
 
     if (screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule) {
         if (screenTextureImage.isNull()) {
-            screenTextureImage = juce::ImageFileFormat::loadFrom(BinaryData::noise_jpg, BinaryData::noise_jpgSize);
+            screenTextureImage = loadAssetOrFallback(
+                assets.noiseScreen,
+                createFallbackScreenTextureImage(juce::Colour(0xff020705), juce::Colour(0xff86ffac), true));
         }
         screenOpenGLTexture.loadImage(screenTextureImage);
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     } else if (screenOverlay == ScreenOverlay::Real) {
         if (oscilloscopeImage.isNull()) {
-            oscilloscopeImage = juce::ImageFileFormat::loadFrom(BinaryData::real_png, BinaryData::real_pngSize);
+            oscilloscopeImage = loadAssetOrFallback(
+                assets.realScreen,
+                createFallbackScreenTextureImage(juce::Colour(0xff050806), juce::Colour(0xff78ffc4), false));
         }
         screenOpenGLTexture.loadImage(oscilloscopeImage);
     } else if (screenOverlay == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayImage.isNull()) {
-            vectorDisplayImage = juce::ImageFileFormat::loadFrom(BinaryData::vector_display_png, BinaryData::vector_display_pngSize);
+            vectorDisplayImage = loadAssetOrFallback(
+                assets.vectorDisplayScreen,
+                createFallbackScreenTextureImage(juce::Colour(0xff020607), juce::Colour(0xff61e8ff), false));
         }
         screenOpenGLTexture.loadImage(vectorDisplayImage);
 #endif
     } else {
         if (emptyScreenImage.isNull()) {
-            emptyScreenImage = juce::ImageFileFormat::loadFrom(BinaryData::empty_jpg, BinaryData::empty_jpgSize);
+            emptyScreenImage = loadAssetOrFallback(
+                assets.emptyScreen,
+                createFallbackScreenTextureImage(juce::Colour(0xff000302), juce::Colour(0xff2ce88a), false));
         }
         screenOpenGLTexture.loadImage(emptyScreenImage);
     }
@@ -1389,7 +1471,7 @@ void VisualiserRenderer::renderScope(const std::vector<float> &xPoints, const st
                                      const std::vector<float> &rPoints, const std::vector<float> &gPoints, const std::vector<float> &bPoints) {
     if (screenOverlay != parameters.getScreenOverlay()) {
         screenOverlay = parameters.getScreenOverlay();
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         reflectionTexture = createReflectionTexture();
 #endif
         screenTexture = createScreenTexture();

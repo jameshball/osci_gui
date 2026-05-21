@@ -31,7 +31,7 @@
   license:           GPLv3
   minimumCppStandard: 20
 
-  dependencies:      juce_core, juce_graphics, juce_gui_basics, juce_gui_extra, juce_audio_processors, juce_animation, melatonin_blur
+  dependencies:      juce_core, juce_graphics, juce_gui_basics, juce_gui_extra, juce_audio_processors, juce_animation, melatonin_blur, osci_render_core
 
  END_JUCE_MODULE_DECLARATION
 
@@ -44,14 +44,28 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <melatonin_blur/melatonin_blur.h>
+#include <osci_render_core/osci_render_core.h>
 
 #include "lookandfeel/osci_LookAndFeel.h"
 #include "lookandfeel/osci_OverlayLookAndFeel.h"
+#include "components/osci_ParameterContextMenu.h"
+#include "components/osci_BooleanParamCCHelper.h"
 #include "components/osci_ToggleAnimationController.h"
 #include "components/osci_HoverAnimationMixin.h"
 #include "components/osci_OverlayListBox.h"
 #include "components/osci_TextEditor.h"
 #include "components/osci_SvgButton.h"
+#include "components/osci_SwitchButton.h"
+#include "components/osci_SvgSwitchButton.h"
+#include "components/osci_SliderTextBox.h"
+#include "components/osci_LabelledTextBox.h"
+#include "components/osci_ValuePopupHelper.h"
+#include "components/osci_VerticalTabListComponent.h"
+#include "components/osci_ParameterSyncHelper.h"
+#include "components/osci_DownloadProgressComponent.h"
+#include "components/osci_DownloaderComponent.h"
+#include "components/osci_StopwatchComponent.h"
+#include "components/osci_CustomTooltipWindow.h"
 #include "components/osci_OverlayComponent.h"
 #include "components/osci_ErrorOverlay.h"
 #include "components/osci_NumberedStepsComponent.h"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 
 #include "osci_VisualiserRendererConfig.h"
 #include "osci_VisualiserParameters.h"
@@ -12,6 +13,17 @@ struct Texture {
 };
 
 class VisualiserWindow;
+
+struct VisualiserRendererAssets {
+    std::function<juce::Image()> noiseScreen;
+    std::function<juce::Image()> emptyScreen;
+    std::function<juce::Image()> realScreen;
+    std::function<juce::Image()> vectorDisplayScreen;
+    std::function<juce::Image()> emptyReflection;
+    std::function<juce::Image()> realReflection;
+    std::function<juce::Image()> vectorDisplayReflection;
+};
+
 class VisualiserRenderer : public juce::Component, public osci::AudioBackgroundThread, public juce::OpenGLRenderer {
 public:
     enum class RenderMode : int {
@@ -38,6 +50,7 @@ public:
     void setResolution(int width);
     void setFrameRate(double frameRate);
     void setPresentationFadeAlpha(float alpha);
+    void setAssets(VisualiserRendererAssets assets);
     // Render mode can be changed from the message thread at any time
     void setRenderMode(RenderMode mode) { renderMode.store(mode); }
     RenderMode getRenderMode() const { return renderMode.load(); }
@@ -148,8 +161,9 @@ private:
 
     juce::Image screenTextureImage;
     juce::Image emptyScreenImage;
+    VisualiserRendererAssets assets;
 
-#if OSCI_PREMIUM
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     juce::Image oscilloscopeImage;
     juce::Image vectorDisplayImage;
 
