@@ -23,7 +23,7 @@ public:
         popup->setColour(juce::Label::textColourId, fg);
         popup->setText(text, juce::dontSendNotification);
 
-        int popupW = popup->getFont().getStringWidth(text) + 14;
+        int popupW = juce::GlyphArrangement::getStringWidthInt(popup->getFont(), text) + 14;
         int popupH = 20;
         auto screenPos = anchor.localPointToGlobal(
             juce::Point<int>(anchor.getWidth() / 2, 0));

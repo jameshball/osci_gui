@@ -256,7 +256,7 @@ void LookAndFeel::drawGroupComponentOutline(juce::Graphics& g, int width, int he
     auto textW = text.isEmpty() ? 0
         : juce::jlimit(0.0f,
             juce::jmax(0.0f, w - cs2 - textEdgeGap * 2),
-            (float)f.getStringWidth(text) + textEdgeGap * 2.0f);
+            juce::GlyphArrangement::getStringWidth(f, text) + textEdgeGap * 2.0f);
     auto textX = cs + textEdgeGap;
 
     if (position.testFlags(juce::Justification::horizontallyCentred))
@@ -784,7 +784,7 @@ void LookAndFeel::getIdealPopupMenuItemSize(const juce::String& text, bool isSep
     }
 
     auto font = juce::Font(13.0f);
-    idealWidth = font.getStringWidth(text) + 40;
+    idealWidth = juce::GlyphArrangement::getStringWidthInt(font, text) + 40;
     idealHeight = 28;
 }
 
