@@ -27,15 +27,17 @@ void main () {
     // We determine point position using its index.
     float idx = mod(aIdx,4.0);
     
-    vec2 aStartPos = aStart.xy * uGain * uWorldToClipScale;
-    vec2 aEndPos = aEnd.xy * uGain * uWorldToClipScale;
+    vec2 canvasToClipScale = uWorldToClipScale;
+    vec2 aStartPos = aStart.xy * uGain * canvasToClipScale;
+    vec2 aEndPos = aEnd.xy * uGain * canvasToClipScale;
     float aStartBrightness = clamp(aStart.z, 0.0, 1.0);
     float aEndBrightness = clamp(aEnd.z, 0.0, 1.0);
-    
-    // `dir` vector is storing the normalized difference
-    // between end and start
-    vec2 dir = aEndPos-aStartPos;
-    uvl.z = length(dir);
+
+    // Work out line direction in square canvas space so beam thickness is not
+    // directionally distorted after the aspect-aware clip-space transform.
+    vec2 canvasDelta = (aEndPos-aStartPos) / canvasToClipScale;
+    vec2 dir = canvasDelta;
+    uvl.z = length(canvasDelta);
     
     if (uvl.z > EPS) {
         dir = dir / uvl.z;
@@ -75,7 +77,8 @@ void main () {
     
     uvl.w *= intensity * intensityFade;
                              
-    vec4 pos = vec4((current+(tang*dir+norm*side)*vSize)*uInvert,0.0,1.0);
+    vec2 clipOffset = (tang*dir+norm*side)*vSize*canvasToClipScale;
+    vec4 pos = vec4((current+clipOffset)*uInvert,0.0,1.0);
     gl_Position = pos;
     vTexCoord = 0.5 * pos.xy + 0.5;
 }

@@ -244,6 +244,7 @@ private:
     void setOffsetAndScale(juce::OpenGLShaderProgram* shader);
     ScreenOverlay getEffectiveScreenOverlay();
     Texture makeTexture(int width, int height, GLuint textureID = 0);
+    void allocateRenderTextures(VisualiserRenderSize size, bool reuseExistingTextures);
     void setupArrays(int num_points);
     void setupTextures(VisualiserRenderSize size);
     void resizeRenderTextures(VisualiserRenderSize size);

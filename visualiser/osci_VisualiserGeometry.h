@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 struct VisualiserRenderSize {
     int width = 1024;
@@ -26,6 +27,12 @@ struct VisualiserGraticuleLayout {
     float xOriginPixels = 62.0f;
     float yOriginPixels = 62.0f;
     float lineWidthPixels = 2.0f;
+};
+
+struct VisualiserRenderTargetSizes {
+    VisualiserRenderSize output;
+    VisualiserRenderSize tightBlur;
+    VisualiserRenderSize wideBlur;
 };
 
 enum class VisualiserCanvasPreset : int {
@@ -181,12 +188,11 @@ namespace VisualiserGeometry {
                 sanitiseTextureDimension(juce::roundToInt(static_cast<double>(size.height) * scale))};
     }
 
-    inline juce::Rectangle<int> getAspectFitBounds(juce::Rectangle<int> area, VisualiserRenderSize size) {
+    inline juce::Rectangle<int> getAspectFitBoundsForAspect(juce::Rectangle<int> area, double targetAspect) {
         if (area.isEmpty()) {
             return area;
         }
 
-        const double targetAspect = getAspectRatio(size);
         const double areaAspect = static_cast<double>(area.getWidth()) / static_cast<double>(area.getHeight());
 
         int fittedWidth = area.getWidth();
@@ -196,11 +202,121 @@ namespace VisualiserGeometry {
         } else {
             fittedHeight = juce::roundToInt(static_cast<double>(fittedWidth) / targetAspect);
         }
+        fittedWidth = juce::jlimit(1, area.getWidth(), fittedWidth);
+        fittedHeight = juce::jlimit(1, area.getHeight(), fittedHeight);
 
         return juce::Rectangle<int>(area.getX() + (area.getWidth() - fittedWidth) / 2,
                                     area.getY() + (area.getHeight() - fittedHeight) / 2,
                                     fittedWidth,
                                     fittedHeight);
+    }
+
+    inline juce::Rectangle<int> getAspectFitBounds(juce::Rectangle<int> area, VisualiserRenderSize size) {
+        return getAspectFitBoundsForAspect(area, getAspectRatio(size));
+    }
+
+    inline juce::Rectangle<int> getCropToFillSourceBounds(juce::Rectangle<int> sourceBounds, double targetAspect) {
+        if (sourceBounds.isEmpty()) {
+            return sourceBounds;
+        }
+
+        const double sourceAspect = static_cast<double>(sourceBounds.getWidth()) / static_cast<double>(sourceBounds.getHeight());
+        int sourceWidth = sourceBounds.getWidth();
+        int sourceHeight = sourceBounds.getHeight();
+
+        if (targetAspect > sourceAspect) {
+            sourceHeight = juce::roundToInt(static_cast<double>(sourceWidth) / targetAspect);
+        } else {
+            sourceWidth = juce::roundToInt(static_cast<double>(sourceHeight) * targetAspect);
+        }
+
+        sourceWidth = juce::jlimit(1, sourceBounds.getWidth(), sourceWidth);
+        sourceHeight = juce::jlimit(1, sourceBounds.getHeight(), sourceHeight);
+
+        return juce::Rectangle<int>(sourceBounds.getX() + (sourceBounds.getWidth() - sourceWidth) / 2,
+                                    sourceBounds.getY() + (sourceBounds.getHeight() - sourceHeight) / 2,
+                                    sourceWidth,
+                                    sourceHeight);
+    }
+
+    inline std::vector<float> getGraticuleLineVertices(VisualiserRenderSize size) {
+        size = sanitiseRenderSize(size.width, size.height);
+        const auto graticule = getGraticuleLayout(size);
+        constexpr int minorDivisions = 5;
+        const float tickScale = graticule.cellSizePixels / 45.0f;
+        const float shortTickNegative = 2.0f * tickScale;
+        const float shortTickPositive = 1.0f * tickScale;
+        const float centreTickNegative = 5.0f * tickScale;
+        const float centreTickPositive = 4.0f * tickScale;
+        const float quarterTickLength = 2.0f * tickScale;
+        const float xMax = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(graticule.xDivisions);
+        const float yMax = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(graticule.yDivisions);
+
+        const int majorLineCount = graticule.yDivisions + graticule.xDivisions + 2;
+        const int horizontalTickLineCount = (graticule.yDivisions - 1) * (graticule.xDivisions * minorDivisions + 1);
+        const int verticalTickLineCount = (graticule.xDivisions - 1) * (graticule.yDivisions * minorDivisions + 1);
+        const int quarterTickLineCount = 2 * graticule.xDivisions * (minorDivisions - 1);
+        const int lineCount = majorLineCount + horizontalTickLineCount + verticalTickLineCount + quarterTickLineCount;
+        std::vector<float> data;
+        data.reserve(static_cast<size_t>(lineCount) * 4u);
+
+        auto addLine = [&](float x1, float y1, float x2, float y2) {
+            data.push_back(graticulePixelToClip(x1, size.width));
+            data.push_back(graticulePixelToClip(y1, size.height));
+            data.push_back(graticulePixelToClip(x2, size.width));
+            data.push_back(graticulePixelToClip(y2, size.height));
+        };
+
+        for (int i = 0; i <= graticule.yDivisions; i++) {
+            const float y = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(i);
+            addLine(graticule.xOriginPixels, y, xMax, y);
+        }
+
+        for (int i = 0; i <= graticule.xDivisions; i++) {
+            const float x = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(i);
+            addLine(x, graticule.yOriginPixels, x, yMax);
+        }
+
+        for (int i = 1; i < graticule.yDivisions; i++) {
+            const float y = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(i);
+            const bool centreLine = i == graticule.yDivisions / 2;
+            const float tickNegative = centreLine ? centreTickNegative : shortTickNegative;
+            const float tickPositive = centreLine ? centreTickPositive : shortTickPositive;
+
+            for (int j = 0; j <= graticule.xDivisions * minorDivisions; j++) {
+                const float tx = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(j) / static_cast<float>(minorDivisions);
+                addLine(tx, y - tickNegative, tx, y + tickPositive);
+            }
+        }
+
+        for (int i = 1; i < graticule.xDivisions; i++) {
+            const float x = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(i);
+            const bool centreLine = i == graticule.xDivisions / 2;
+            const float tickNegative = centreLine ? centreTickNegative : shortTickNegative;
+            const float tickPositive = centreLine ? centreTickPositive : shortTickPositive;
+
+            for (int j = 0; j <= graticule.yDivisions * minorDivisions; j++) {
+                const float ty = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(j) / static_cast<float>(minorDivisions);
+                addLine(x - tickNegative, ty, x + tickPositive, ty);
+            }
+        }
+
+        const float quarterY1 = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(graticule.yDivisions) * 0.25f;
+        const float quarterY2 = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(graticule.yDivisions) * 0.75f;
+        for (int j = 0; j <= graticule.xDivisions * minorDivisions; j++) {
+            if (j % minorDivisions != 0) {
+                const float x = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(j) / static_cast<float>(minorDivisions);
+                addLine(x - quarterTickLength, quarterY1, x + quarterTickLength, quarterY1);
+                addLine(x - quarterTickLength, quarterY2, x + quarterTickLength, quarterY2);
+            }
+        }
+
+        return data;
+    }
+
+    inline VisualiserRenderTargetSizes getRenderTargetSizes(VisualiserRenderSize size) {
+        size = sanitiseRenderSize(size.width, size.height);
+        return {size, getAspectScaledRenderSize(size, 512), getAspectScaledRenderSize(size, 128)};
     }
 
     inline std::uint64_t packRenderSize(VisualiserRenderSize size) {
@@ -219,30 +335,4 @@ namespace VisualiserGeometry {
         return sanitiseRenderSize(width, height);
     }
 
-    inline int getLegacyResolutionFromXml(const juce::XmlElement* resolutionXml) {
-        if (resolutionXml == nullptr) {
-            return 0;
-        }
-
-        for (const auto* parameterXml : resolutionXml->getChildIterator()) {
-            if (parameterXml->getStringAttribute("id") == "resolution" && parameterXml->hasAttribute("value")) {
-                return parameterXml->getIntAttribute("value");
-            }
-        }
-
-        return 0;
-    }
-
-    inline VisualiserRenderSize getLegacyRenderSizeFromRecordingSettingsXml(const juce::XmlElement* settingsXml, VisualiserRenderSize fallback = {1024, 1024}) {
-        if (settingsXml == nullptr) {
-            return sanitiseRenderSize(fallback.width, fallback.height);
-        }
-
-        const int legacyResolution = getLegacyResolutionFromXml(settingsXml->getChildByName("resolution"));
-        if (legacyResolution > 0) {
-            return sanitiseRenderSize(legacyResolution, legacyResolution);
-        }
-
-        return sanitiseRenderSize(fallback.width, fallback.height);
-    }
 }
