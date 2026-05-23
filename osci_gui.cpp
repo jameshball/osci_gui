@@ -17,6 +17,10 @@
 #include "components/osci_GridComponent.cpp"
 #include "components/osci_CustomTooltipWindow.cpp"
 #include "components/osci_DownloaderComponent.cpp"
+#include "components/list/osci_VListBox.cpp"
+#include "components/list/osci_ComponentList.cpp"
+#include "components/list/osci_DraggableListBox.cpp"
+#include "components/midi/osci_CustomMidiKeyboardComponent.cpp"
 #if OSCI_GUI_ENABLE_VISUALISER
 #include "visualiser/osci_VisualiserRenderer.cpp"
 #endif
