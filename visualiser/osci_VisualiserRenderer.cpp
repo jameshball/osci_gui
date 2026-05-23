@@ -802,6 +802,7 @@ void VisualiserRenderer::setupTextures(VisualiserRenderSize size) {
     using namespace juce::gl;
 
     size = VisualiserGeometry::sanitiseRenderSize(size.width, size.height);
+    screenOverlay = getEffectiveScreenOverlay();
     const auto tightBlurSize = VisualiserGeometry::getAspectScaledRenderSize(size, 512);
     const auto wideBlurSize = VisualiserGeometry::getAspectScaledRenderSize(size, 128);
 
@@ -831,6 +832,7 @@ void VisualiserRenderer::resizeRenderTextures(VisualiserRenderSize size) {
     using namespace juce::gl;
 
     size = VisualiserGeometry::sanitiseRenderSize(size.width, size.height);
+    screenOverlay = getEffectiveScreenOverlay();
     const auto tightBlurSize = VisualiserGeometry::getAspectScaledRenderSize(size, 512);
     const auto wideBlurSize = VisualiserGeometry::getAspectScaledRenderSize(size, 128);
 
@@ -1272,7 +1274,7 @@ void VisualiserRenderer::drawCRT() {
     checkGLErrors(__FILE__, __LINE__);
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    if (parameters.screenOverlay->isRealisticDisplay()) {
+    if (ScreenOverlayParameter::isRealisticDisplay(screenOverlay)) {
         // create glow texture
         activateTargetTexture(glowTexture);
         setShader(glowShader.get());
@@ -1307,7 +1309,7 @@ void VisualiserRenderer::drawCRT() {
     setOffsetAndScale(outputShader.get());
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     outputShader->setUniform("uFishEye", screenOverlay == ScreenOverlay::VectorDisplay ? VECTOR_DISPLAY_FISH_EYE : 0.0f);
-    outputShader->setUniform("uRealScreen", parameters.screenOverlay->isRealisticDisplay() ? 1.0f : 0.0f);
+    outputShader->setUniform("uRealScreen", ScreenOverlayParameter::isRealisticDisplay(screenOverlay) ? 1.0f : 0.0f);
 #else
     outputShader->setUniform("uFishEye", 0.0f);
     outputShader->setUniform("uRealScreen", 0.0f);
@@ -1327,14 +1329,21 @@ void VisualiserRenderer::drawCRT() {
     checkGLErrors(__FILE__, __LINE__);
 }
 
+ScreenOverlay VisualiserRenderer::getEffectiveScreenOverlay() {
+    return getScreenOverlayForRenderSize(
+        parameters.getScreenOverlay(),
+        VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
+}
+
 void VisualiserRenderer::setOffsetAndScale(juce::OpenGLShaderProgram *shader) {
     osci::Point offset;
     osci::Point scale = {1.0f};
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    if (parameters.getScreenOverlay() == ScreenOverlay::Real) {
+    const auto effectiveOverlay = getEffectiveScreenOverlay();
+    if (effectiveOverlay == ScreenOverlay::Real) {
         offset = REAL_SCREEN_OFFSET;
         scale = REAL_SCREEN_SCALE;
-    } else if (parameters.getScreenOverlay() == ScreenOverlay::VectorDisplay) {
+    } else if (effectiveOverlay == ScreenOverlay::VectorDisplay) {
         offset = VECTOR_DISPLAY_OFFSET;
         scale = VECTOR_DISPLAY_SCALE;
     }
@@ -1352,12 +1361,13 @@ Texture VisualiserRenderer::createReflectionTexture() {
     juce::Graphics g(canvas);
     g.fillAll(juce::Colours::black);
 
-    if (parameters.getScreenOverlay() == ScreenOverlay::VectorDisplay) {
+    const auto effectiveOverlay = getEffectiveScreenOverlay();
+    if (effectiveOverlay == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayReflectionImage.isNull()) {
             vectorDisplayReflectionImage = loadAssetOrFallback(assets.vectorDisplayReflection, createFallbackReflectionTextureImage());
         }
         drawImageAspectFit(g, vectorDisplayReflectionImage, canvas.getBounds());
-    } else if (parameters.getScreenOverlay() == ScreenOverlay::Real) {
+    } else if (effectiveOverlay == ScreenOverlay::Real) {
         if (oscilloscopeReflectionImage.isNull()) {
             oscilloscopeReflectionImage = loadAssetOrFallback(assets.realReflection, createFallbackReflectionTextureImage());
         }
@@ -1591,8 +1601,9 @@ void VisualiserRenderer::checkGLErrors(juce::String file, int line) {
 
 void VisualiserRenderer::renderScope(const std::vector<float> &xPoints, const std::vector<float> &yPoints,
                                      const std::vector<float> &rPoints, const std::vector<float> &gPoints, const std::vector<float> &bPoints) {
-    if (screenOverlay != parameters.getScreenOverlay()) {
-        screenOverlay = parameters.getScreenOverlay();
+    const auto effectiveOverlay = getEffectiveScreenOverlay();
+    if (screenOverlay != effectiveOverlay) {
+        screenOverlay = effectiveOverlay;
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         reflectionTexture = createReflectionTexture();
 #endif

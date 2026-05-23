@@ -1,6 +1,7 @@
 #pragma once
 
 #include "osci_VisualiserConfig.h"
+#include "osci_VisualiserGeometry.h"
 
 enum class ScreenOverlay : int {
     INVALID = -1,
@@ -73,12 +74,24 @@ public:
     }
     
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    bool isRealisticDisplay() {
-        ScreenOverlay type = (ScreenOverlay)(int)getValueUnnormalised();
+    static bool isRealisticDisplay(ScreenOverlay type) {
         return type == ScreenOverlay::Real || type == ScreenOverlay::VectorDisplay;
+    }
+
+    bool isRealisticDisplay() {
+        return isRealisticDisplay((ScreenOverlay)(int)getValueUnnormalised());
     }
 #endif
 };
+
+inline ScreenOverlay getScreenOverlayForRenderSize(ScreenOverlay overlay, VisualiserRenderSize size) {
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    if (!VisualiserGeometry::isSquare(size) && ScreenOverlayParameter::isRealisticDisplay(overlay)) {
+        return ScreenOverlay::SmudgedGraticule;
+    }
+#endif
+    return overlay;
+}
 
 class VisualiserParameters {
 public:

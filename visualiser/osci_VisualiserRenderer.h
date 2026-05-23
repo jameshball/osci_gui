@@ -242,6 +242,7 @@ private:
     std::atomic<RenderMode> renderMode { RenderMode::XYRGB };
 
     void setOffsetAndScale(juce::OpenGLShaderProgram* shader);
+    ScreenOverlay getEffectiveScreenOverlay();
     Texture makeTexture(int width, int height, GLuint textureID = 0);
     void setupArrays(int num_points);
     void setupTextures(VisualiserRenderSize size);

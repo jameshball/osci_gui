@@ -108,6 +108,11 @@ namespace VisualiserGeometry {
         return static_cast<double>(size.width) / static_cast<double>(size.height);
     }
 
+    inline bool isSquare(VisualiserRenderSize size) {
+        size = sanitiseRenderSize(size.width, size.height);
+        return size.width == size.height;
+    }
+
     inline juce::Point<float> getWorldToClipScale(VisualiserRenderSize size) {
         const float aspect = static_cast<float>(getAspectRatio(size));
         if (aspect >= 1.0f) {
