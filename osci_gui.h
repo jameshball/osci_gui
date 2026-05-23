@@ -75,7 +75,6 @@
 #include "components/osci_ScrollFadeViewport.h"
 #include "components/osci_GridItemComponent.h"
 #include "components/osci_GridComponent.h"
-#if OSCI_GUI_ENABLE_APP_CONTROLS
 #include "components/osci_DisabledOverlay.h"
 #include "components/list/osci_VListBox.h"
 #include "components/list/osci_ComponentList.h"
@@ -90,4 +89,3 @@
 #include "components/parameters/osci_ToggleLabelComponent.h"
 #include "components/sliders/osci_RotaryKnobComponent.h"
 #include "components/sliders/osci_PhaseSliderComponent.h"
-#endif
