@@ -12,6 +12,8 @@ Set `OSCI_PROPRIETARY_BUILD=1` when compiling a proprietary consumer or verifyin
 
 This is a build-mode boundary only. It does not replace ownership records, private licensing terms, contributor relicensing records, third-party notices, or commercial licenses for framework dependencies.
 
+Some reusable controls in this module are derived from JUCE components. Proprietary consumers must use them only with suitable JUCE commercial or other non-GPL-compatible licensing for the consuming product.
+
 In this mode, `osci_gui` code should:
 
 - compile without GPL-only or unresolved-provenance dependencies

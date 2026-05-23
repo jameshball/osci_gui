@@ -29,3 +29,9 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ## SwitchButton
 
 `components/osci_SwitchButton.h` includes code derived from Tal Aviram's JUX `SwitchButton`, licensed under the MIT license. The full MIT notice is retained in that source file and must remain with copies or substantial portions of the file.
+
+## JUCE-Derived Components
+
+`components/list/osci_VListBox.*` is derived from JUCE's `ListBox` implementation, and `components/midi/osci_CustomMidiKeyboardComponent.*` is derived from JUCE's `MidiKeyboardComponent`.
+
+The original JUCE notices are retained in the source files. Proprietary products using these files need suitable JUCE commercial or other non-GPL-compatible licensing for the consuming product.
