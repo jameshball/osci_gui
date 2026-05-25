@@ -80,11 +80,15 @@ void GridItemComponent::paint (juce::Graphics& g) {
 
 void GridItemComponent::paintListItem (juce::Graphics& g, juce::Rectangle<float> bounds, float animationProgress) {
     if (animationProgress > 0.01f) {
-        juce::Path shadowPath;
-        shadowPath.addRoundedRectangle (bounds, cornerRadius);
-        juce::DropShadow (Colours::accentColor().withAlpha (animationProgress * 0.2f),
-                          juce::roundToInt (15.0f * animationProgress),
-                          { 0, 4 }).drawForPath (g, shadowPath);
+        const auto shadowRadius = juce::roundToInt(15.0f * animationProgress);
+
+        if (shadowRadius > 0) {
+            juce::Path shadowPath;
+            shadowPath.addRoundedRectangle (bounds, cornerRadius);
+            juce::DropShadow (Colours::accentColor().withAlpha (animationProgress * 0.2f),
+                              shadowRadius,
+                              { 0, 4 }).drawForPath (g, shadowPath);
+        }
     }
 
     const auto normalBgColour = description.isNotEmpty() ? Colours::veryDark().brighter (0.1f)
