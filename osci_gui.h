@@ -58,6 +58,7 @@
 #include "components/osci_SvgButton.h"
 #include "components/osci_SwitchButton.h"
 #include "components/osci_SvgSwitchButton.h"
+#include "components/osci_DebouncedCallback.h"
 #include "components/osci_SliderTextBox.h"
 #include "components/osci_LabelledTextBox.h"
 #include "components/osci_ValuePopupHelper.h"
