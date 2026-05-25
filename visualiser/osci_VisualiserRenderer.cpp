@@ -1,5 +1,7 @@
 #include "osci_VisualiserRenderer.h"
 
+#include "../lookandfeel/osci_LookAndFeel.h"
+
 #include "AfterglowFragmentShader.glsl"
 #include "AfterglowVertexShader.glsl"
 #include "BlurFragmentShader.glsl"
@@ -20,6 +22,12 @@
 #include <utility>
 
 namespace {
+
+juce::Colour visualiserScreenBaseColour()
+{
+    const auto themeBase = osci::Colours::surfaceSunken();
+    return themeBase.interpolatedWith (osci::Colours::shadow(), osci::Theme::isDark() ? 0.86f : 0.38f);
+}
 
 juce::Image loadAssetOrFallback(const std::function<juce::Image()>& loader, juce::Image fallback) {
     if (loader != nullptr) {
@@ -63,10 +71,10 @@ juce::Image createFallbackReflectionTextureImage() {
     juce::Image image(juce::Image::ARGB, size, size, true);
     juce::Graphics g(image);
     juce::ColourGradient gradient(
-        juce::Colours::transparentBlack,
+        osci::Colours::transparent(),
         0.0f,
         0.0f,
-        juce::Colours::black.withAlpha(0.35f),
+        osci::Colours::shadow().withAlpha(0.35f),
         0.0f,
         static_cast<float>(size),
         false);
@@ -588,7 +596,7 @@ void VisualiserRenderer::renderOpenGL() {
             juce::Logger::writeToLog(diagMsg);
         }
 
-        juce::OpenGLHelpers::clear(juce::Colours::black);
+        juce::OpenGLHelpers::clear(visualiserScreenBaseColour());
 
         // Mirror mode: display the parent's captured frame
         auto* source = mirrorSource.load();
@@ -1319,7 +1327,7 @@ Texture VisualiserRenderer::createReflectionTexture() {
     const auto size = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
     juce::Image canvas(juce::Image::ARGB, size.width, size.height, true);
     juce::Graphics g(canvas);
-    g.fillAll(juce::Colours::black);
+    g.fillAll(visualiserScreenBaseColour());
 
     const auto effectiveOverlay = getEffectiveScreenOverlay();
     if (effectiveOverlay == ScreenOverlay::VectorDisplay) {
@@ -1352,13 +1360,13 @@ Texture VisualiserRenderer::createScreenTexture() {
     const auto size = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
     juce::Image canvas(juce::Image::ARGB, size.width, size.height, true);
     juce::Graphics g(canvas);
-    g.fillAll(juce::Colours::black);
+    g.fillAll(visualiserScreenBaseColour());
 
     if (screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule) {
         if (screenTextureImage.isNull()) {
             screenTextureImage = loadAssetOrFallback(
                 assets.noiseScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff020705), juce::Colour(0xff86ffac), true));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor().brighter(0.25f), true));
         }
         drawImageCropToFill(g, screenTextureImage, canvas.getBounds());
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
@@ -1366,14 +1374,14 @@ Texture VisualiserRenderer::createScreenTexture() {
         if (oscilloscopeImage.isNull()) {
             oscilloscopeImage = loadAssetOrFallback(
                 assets.realScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff050806), juce::Colour(0xff78ffc4), false));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portInput().brighter(0.25f), false));
         }
         drawImageAspectFit(g, oscilloscopeImage, canvas.getBounds());
     } else if (screenOverlay == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayImage.isNull()) {
             vectorDisplayImage = loadAssetOrFallback(
                 assets.vectorDisplayScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff020607), juce::Colour(0xff61e8ff), false));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portOutput().brighter(0.25f), false));
         }
         drawImageAspectFit(g, vectorDisplayImage, canvas.getBounds());
 #endif
@@ -1381,7 +1389,7 @@ Texture VisualiserRenderer::createScreenTexture() {
         if (emptyScreenImage.isNull()) {
             emptyScreenImage = loadAssetOrFallback(
                 assets.emptyScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff000302), juce::Colour(0xff2ce88a), false));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor(), false));
         }
         drawImageCropToFill(g, emptyScreenImage, canvas.getBounds());
     }

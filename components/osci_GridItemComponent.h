@@ -12,7 +12,7 @@ public:
     GridItemComponent (const juce::String& name,
                        const juce::String& iconSvg,
                        const juce::String& id,
-                       juce::Colour iconTint = juce::Colours::white.withAlpha (0.7f));
+                       juce::Colour iconTint = Colours::textMuted());
 
     GridItemComponent (const juce::String& name,
                        juce::Image icon,
@@ -78,7 +78,7 @@ private:
     bool selected { false };
     LayoutMode layoutMode { LayoutMode::List };
     juce::String description;
-    juce::Colour iconColour { juce::Colours::white.withAlpha (0.7f) };
+    juce::Colour iconColour { Colours::textMuted() };
 
     static constexpr int cornerRadius = 8;
     static constexpr int textHorizontalPadding = 40;

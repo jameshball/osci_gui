@@ -12,10 +12,17 @@ enum ColourIds {
 };
 
 // ============================================================================
-// Theme system — define colour palettes and switch between them at runtime.
+// Theme system - define colour palettes and switch between them at runtime.
 // ============================================================================
 
+enum class ThemeMode
+{
+    light,
+    dark
+};
+
 struct Theme {
+    ThemeMode mode = ThemeMode::dark;
     juce::Colour dark;
     juce::Colour darker;
     juce::Colour darkerer;
@@ -23,61 +30,68 @@ struct Theme {
     juce::Colour veryDark;
     juce::Colour grey;
     juce::Colour accentColor;
+    juce::Colour text;
+    juce::Colour textMuted;
+    juce::Colour textSubtle;
+    juce::Colour textOnAccent;
+    juce::Colour canvasBackground;
+    juce::Colour gridMinor;
+    juce::Colour gridMajor;
+    juce::Colour surface;
+    juce::Colour surfaceRaised;
+    juce::Colour surfaceSunken;
+    juce::Colour overlay;
+    juce::Colour outline;
+    juce::Colour outlineSubtle;
+    juce::Colour shadow;
+    juce::Colour danger;
+    juce::Colour warning;
+    juce::Colour midiLearn;
+    juce::Colour portInput;
+    juce::Colour portOutput;
+    juce::Colour categoryGenerators;
+    juce::Colour categoryControls;
+    juce::Colour categoryMath;
+    juce::Colour categoryEffects;
+    juce::Colour categoryFileSources;
+    juce::Colour categoryScripting;
+    juce::Colour categoryInput;
+    juce::Colour categoryOutput;
+    juce::Colour categoryPlugins;
+    juce::Colour codeBackground;
+    juce::Colour codeCurrentLine;
+    juce::Colour codeSelection;
+    juce::Colour codeForeground;
+    juce::Colour codeComment;
+    juce::Colour codeCyan;
+    juce::Colour codeGreen;
+    juce::Colour codeOrange;
+    juce::Colour codePink;
+    juce::Colour codePurple;
+    juce::Colour codeRed;
+    juce::Colour codeYellow;
 
     static constexpr int kLabelHeight = 14;
 
     // --- Built-in themes ---
 
-    static const Theme& classic() {
-        static const Theme t {
-            juce::Colour(0xff585858),   // dark
-            juce::Colour(0xff454545),   // darker
-            juce::Colour(0xff333333),   // darkerer
-            juce::Colour(0xff222222),   // evenDarker
-            juce::Colour(0xff111111),   // veryDark
-            juce::Colour(0xff6c6c6c),   // grey
-            juce::Colour(0xff00cc00),   // accentColor
-        };
-        return t;
-    }
-
-    static const Theme& blue() {
-        static const Theme t {
-            juce::Colour(0xff575a60),   // dark  (slightly more blue tinge)
-            juce::Colour(0xff44474d),   // darker
-            juce::Colour(0xff32353a),   // darkerer
-            juce::Colour(0xff222428),   // evenDarker
-            juce::Colour(0xff111215),   // veryDark
-            juce::Colour(0xff6b6e75),   // grey
-            juce::Colour(0xff00cc00),   // accentColor (keep green)
-        };
-        return t;
-    }
-
-    static const Theme& green() {
-        static const Theme t {
-            juce::Colour(0xff585a58),   // dark  (very slight green tinge)
-            juce::Colour(0xff454745),   // darker
-            juce::Colour(0xff333533),   // darkerer
-            juce::Colour(0xff222422),   // evenDarker
-            juce::Colour(0xff111211),   // veryDark
-            juce::Colour(0xff6c6e6c),   // grey
-            juce::Colour(0xff00cc00),   // accentColor (keep green)
-        };
-        return t;
-    }
+    static const Theme& darkTheme();
+    static const Theme& lightTheme();
+    static const Theme& classic();
+    static const Theme& blue();
+    static const Theme& green();
 
     // --- Active theme ---
 
-    static const Theme& current() { return *activePalette(); }
+    static const Theme& current();
+    static ThemeMode currentMode();
+    static bool isDark();
 
-    static void setCurrent(const Theme& theme) { activePalette() = &theme; }
+    static void setCurrent(const Theme& theme);
+    static void setCurrentMode(ThemeMode mode);
 
 private:
-    static const Theme*& activePalette() {
-        static const Theme* p = &classic();
-        return p;
-    }
+    static const Theme*& activePalette();
 };
 
 namespace Colours {
@@ -89,28 +103,56 @@ namespace Colours {
     inline juce::Colour veryDark()        { return Theme::current().veryDark; }
     inline juce::Colour grey()            { return Theme::current().grey; }
     inline juce::Colour accentColor()     { return Theme::current().accentColor; }
+    inline juce::Colour text()            { return Theme::current().text; }
+    inline juce::Colour textMuted()       { return Theme::current().textMuted; }
+    inline juce::Colour textSubtle()      { return Theme::current().textSubtle; }
+    inline juce::Colour textOnAccent()    { return Theme::current().textOnAccent; }
+    inline juce::Colour canvasBackground(){ return Theme::current().canvasBackground; }
+    inline juce::Colour gridMinor()       { return Theme::current().gridMinor; }
+    inline juce::Colour gridMajor()       { return Theme::current().gridMajor; }
+    inline juce::Colour surface()         { return Theme::current().surface; }
+    inline juce::Colour surfaceRaised()   { return Theme::current().surfaceRaised; }
+    inline juce::Colour surfaceSunken()   { return Theme::current().surfaceSunken; }
+    inline juce::Colour overlay()         { return Theme::current().overlay; }
+    inline juce::Colour outline()         { return Theme::current().outline; }
+    inline juce::Colour outlineSubtle()   { return Theme::current().outlineSubtle; }
+    inline juce::Colour shadow()          { return Theme::current().shadow; }
+    inline juce::Colour danger()          { return Theme::current().danger; }
+    inline juce::Colour warning()         { return Theme::current().warning; }
+    inline juce::Colour portInput()       { return Theme::current().portInput; }
+    inline juce::Colour portOutput()      { return Theme::current().portOutput; }
+    inline juce::Colour categoryGenerators() { return Theme::current().categoryGenerators; }
+    inline juce::Colour categoryControls()   { return Theme::current().categoryControls; }
+    inline juce::Colour categoryMath()       { return Theme::current().categoryMath; }
+    inline juce::Colour categoryEffects()    { return Theme::current().categoryEffects; }
+    inline juce::Colour categoryFileSources(){ return Theme::current().categoryFileSources; }
+    inline juce::Colour categoryScripting()  { return Theme::current().categoryScripting; }
+    inline juce::Colour categoryInput()      { return Theme::current().categoryInput; }
+    inline juce::Colour categoryOutput()     { return Theme::current().categoryOutput; }
+    inline juce::Colour categoryPlugins()    { return Theme::current().categoryPlugins; }
+    inline juce::Colour codeBackground()     { return Theme::current().codeBackground; }
+    inline juce::Colour codeCurrentLine()    { return Theme::current().codeCurrentLine; }
+    inline juce::Colour codeSelection()      { return Theme::current().codeSelection; }
+    inline juce::Colour codeForeground()     { return Theme::current().codeForeground; }
+    inline juce::Colour codeComment()        { return Theme::current().codeComment; }
+    inline juce::Colour codeCyan()           { return Theme::current().codeCyan; }
+    inline juce::Colour codeGreen()          { return Theme::current().codeGreen; }
+    inline juce::Colour codeOrange()         { return Theme::current().codeOrange; }
+    inline juce::Colour codePink()           { return Theme::current().codePink; }
+    inline juce::Colour codePurple()         { return Theme::current().codePurple; }
+    inline juce::Colour codeRed()            { return Theme::current().codeRed; }
+    inline juce::Colour codeYellow()         { return Theme::current().codeYellow; }
 
     static constexpr int kLabelHeight = Theme::kLabelHeight;
     static constexpr float kPillRadius = kLabelHeight * 0.5f;
 
-    inline juce::Colour midiLearnBackground() { return juce::Colours::red.withAlpha(0.6f); }
-    inline juce::Colour midiLearnText()       { return juce::Colours::red; }
+    inline juce::Colour transparent()         { return juce::Colour(); }
+    inline juce::Colour neutralFill(float alpha) { return text().withAlpha(alpha); }
+    inline juce::Colour neutralStroke(float alpha) { return text().withAlpha(alpha); }
+    inline juce::Colour invertedNeutral(float alpha) { return shadow().withAlpha(alpha); }
+    inline juce::Colour midiLearnBackground() { return Theme::current().midiLearn.withAlpha(0.6f); }
+    inline juce::Colour midiLearnText()       { return Theme::current().midiLearn; }
     inline const juce::String& midiLearnLabel() { static const juce::String s("MIDI Learn..."); return s; }
-}
-
-namespace Dracula {
-    const juce::Colour background{0xff282a36};
-    const juce::Colour currentLine{0xff44475a};
-    const juce::Colour selection{0xff44475a};
-    const juce::Colour foreground{0xfff8f8f2};
-    const juce::Colour comment{0xff6272a4};
-    const juce::Colour cyan{0xff8be9fd};
-    const juce::Colour green{0xff50fa7b};
-    const juce::Colour orange{0xffffb86c};
-    const juce::Colour pink{0xffff79c6};
-    const juce::Colour purple{0xffbd93f9};
-    const juce::Colour red{0xffff5555};
-    const juce::Colour yellow{0xfff1fa8c};
 }
 
 namespace LookAndFeelHelpers {
@@ -126,6 +168,63 @@ namespace LookAndFeelHelpers {
         }
 
         return baseColour;
+    }
+
+    inline void drawFittedText (juce::Graphics& g,
+                                const juce::String& text,
+                                juce::Rectangle<float> area,
+                                juce::Justification justification,
+                                int maximumNumberOfLines,
+                                float minimumHorizontalScale = 0.0f,
+                                juce::GlyphArrangementOptions options = {}) {
+        if (text.isEmpty() || area.isEmpty() || maximumNumberOfLines <= 0) {
+            return;
+        }
+
+        juce::GlyphArrangement glyphs;
+        glyphs.addFittedText (g.getCurrentFont(),
+                              text,
+                              area.getX(),
+                              area.getY(),
+                              area.getWidth(),
+                              area.getHeight(),
+                              justification,
+                              maximumNumberOfLines,
+                              minimumHorizontalScale,
+                              options);
+        glyphs.draw (g);
+    }
+
+    inline void drawFittedText (juce::Graphics& g,
+                                const juce::String& text,
+                                juce::Rectangle<int> area,
+                                juce::Justification justification,
+                                int maximumNumberOfLines,
+                                float minimumHorizontalScale = 0.0f,
+                                juce::GlyphArrangementOptions options = {}) {
+        drawFittedText (g, text, area.toFloat(), justification, maximumNumberOfLines, minimumHorizontalScale, options);
+    }
+
+    inline void drawFittedText (juce::Graphics& g,
+                                const juce::String& text,
+                                int x,
+                                int y,
+                                int width,
+                                int height,
+                                juce::Justification justification,
+                                int maximumNumberOfLines,
+                                float minimumHorizontalScale = 0.0f,
+                                juce::GlyphArrangementOptions options = {}) {
+        drawFittedText (g,
+                        text,
+                        juce::Rectangle<float> (static_cast<float> (x),
+                                                static_cast<float> (y),
+                                                static_cast<float> (width),
+                                                static_cast<float> (height)),
+                        justification,
+                        maximumNumberOfLines,
+                        minimumHorizontalScale,
+                        options);
     }
 
 

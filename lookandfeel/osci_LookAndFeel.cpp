@@ -2,6 +2,175 @@
 
 namespace osci {
 
+namespace
+{
+Theme makeDarkTheme()
+{
+    Theme theme;
+    theme.mode = ThemeMode::dark;
+    theme.dark = juce::Colour (0xff575a60);
+    theme.darker = juce::Colour (0xff44474d);
+    theme.darkerer = juce::Colour (0xff32353a);
+    theme.evenDarker = juce::Colour (0xff222428);
+    theme.veryDark = juce::Colour (0xff111215);
+    theme.grey = juce::Colour (0xff6b6e75);
+    theme.accentColor = juce::Colour (0xff00cc00);
+    theme.text = juce::Colour (0xfff8f8f2);
+    theme.textMuted = theme.text.withAlpha (0.78f);
+    theme.textSubtle = theme.text.withAlpha (0.56f);
+    theme.textOnAccent = juce::Colour (0xff071008);
+    theme.canvasBackground = juce::Colour (0xff0f1012);
+    theme.gridMinor = theme.text.withAlpha (0.014f);
+    theme.gridMajor = theme.text.withAlpha (0.038f);
+    theme.surface = juce::Colour (0xff191a1d);
+    theme.surfaceRaised = juce::Colour (0xff252629);
+    theme.surfaceSunken = juce::Colour (0xff08090b);
+    theme.overlay = theme.darkerer.withAlpha (0.92f);
+    theme.outline = theme.text.withAlpha (0.22f);
+    theme.outlineSubtle = theme.text.withAlpha (0.10f);
+    theme.shadow = juce::Colour (0xff000000);
+    theme.danger = juce::Colour (0xffff5555);
+    theme.warning = juce::Colour (0xffffb86c);
+    theme.midiLearn = juce::Colour (0xffff5555);
+    theme.portInput = juce::Colour (0xff55d987);
+    theme.portOutput = juce::Colour (0xff57a5ff);
+    theme.categoryGenerators = juce::Colour (0xff72e4ff);
+    theme.categoryControls = juce::Colour (0xfff6d365);
+    theme.categoryMath = juce::Colour (0xffd98cff);
+    theme.categoryEffects = theme.accentColor;
+    theme.categoryFileSources = juce::Colour (0xffffa66b);
+    theme.categoryScripting = juce::Colour (0xff8cc7ff);
+    theme.categoryInput = juce::Colour (0xff7bed9f);
+    theme.categoryOutput = juce::Colour (0xffff7675);
+    theme.categoryPlugins = juce::Colour (0xffb2bec3);
+    theme.codeBackground = juce::Colour (0xff282a36);
+    theme.codeCurrentLine = juce::Colour (0xff44475a);
+    theme.codeSelection = juce::Colour (0xff44475a);
+    theme.codeForeground = juce::Colour (0xfff8f8f2);
+    theme.codeComment = juce::Colour (0xff6272a4);
+    theme.codeCyan = juce::Colour (0xff8be9fd);
+    theme.codeGreen = juce::Colour (0xff50fa7b);
+    theme.codeOrange = juce::Colour (0xffffb86c);
+    theme.codePink = juce::Colour (0xffff79c6);
+    theme.codePurple = juce::Colour (0xffbd93f9);
+    theme.codeRed = theme.danger;
+    theme.codeYellow = juce::Colour (0xfff1fa8c);
+    return theme;
+}
+
+Theme makeLightTheme()
+{
+    Theme theme;
+    theme.mode = ThemeMode::light;
+    theme.dark = juce::Colour (0xffc8d0dc);
+    theme.darker = juce::Colour (0xffdce2ea);
+    theme.darkerer = juce::Colour (0xffebeff5);
+    theme.evenDarker = juce::Colour (0xfff3f6fa);
+    theme.veryDark = juce::Colour (0xfffafbfe);
+    theme.grey = juce::Colour (0xff697383);
+    theme.accentColor = juce::Colour (0xff168f3c);
+    theme.text = juce::Colour (0xff17202b);
+    theme.textMuted = theme.text.withAlpha (0.74f);
+    theme.textSubtle = theme.text.withAlpha (0.54f);
+    theme.textOnAccent = juce::Colour (0xffffffff);
+    theme.canvasBackground = juce::Colour (0xfff4f7fb);
+    theme.gridMinor = theme.text.withAlpha (0.034f);
+    theme.gridMajor = theme.text.withAlpha (0.076f);
+    theme.surface = juce::Colour (0xffffffff);
+    theme.surfaceRaised = juce::Colour (0xffeef2f7);
+    theme.surfaceSunken = juce::Colour (0xffe6ebf2);
+    theme.overlay = theme.surface.withAlpha (0.94f);
+    theme.outline = theme.text.withAlpha (0.20f);
+    theme.outlineSubtle = theme.text.withAlpha (0.10f);
+    theme.shadow = juce::Colour (0xff2a3442);
+    theme.danger = juce::Colour (0xffc93d4b);
+    theme.warning = juce::Colour (0xffbd6b1f);
+    theme.midiLearn = theme.danger;
+    theme.portInput = juce::Colour (0xff18884a);
+    theme.portOutput = juce::Colour (0xff286ec9);
+    theme.categoryGenerators = juce::Colour (0xff0f82ad);
+    theme.categoryControls = juce::Colour (0xffa87116);
+    theme.categoryMath = juce::Colour (0xff9754c8);
+    theme.categoryEffects = theme.accentColor;
+    theme.categoryFileSources = juce::Colour (0xffbc642c);
+    theme.categoryScripting = juce::Colour (0xff326fa9);
+    theme.categoryInput = juce::Colour (0xff1a8a56);
+    theme.categoryOutput = juce::Colour (0xffc24758);
+    theme.categoryPlugins = juce::Colour (0xff697383);
+    theme.codeBackground = juce::Colour (0xfff8fafc);
+    theme.codeCurrentLine = juce::Colour (0xffe9eef6);
+    theme.codeSelection = juce::Colour (0xffdbe7f7);
+    theme.codeForeground = juce::Colour (0xff17202b);
+    theme.codeComment = juce::Colour (0xff697383);
+    theme.codeCyan = juce::Colour (0xff0f82ad);
+    theme.codeGreen = juce::Colour (0xff18884a);
+    theme.codeOrange = juce::Colour (0xffbd6b1f);
+    theme.codePink = juce::Colour (0xffb3447a);
+    theme.codePurple = juce::Colour (0xff7a5bb7);
+    theme.codeRed = theme.danger;
+    theme.codeYellow = juce::Colour (0xff8a7400);
+    return theme;
+}
+} // namespace
+
+const Theme& Theme::darkTheme()
+{
+    static const Theme theme = makeDarkTheme();
+    return theme;
+}
+
+const Theme& Theme::lightTheme()
+{
+    static const Theme theme = makeLightTheme();
+    return theme;
+}
+
+const Theme& Theme::classic()
+{
+    return darkTheme();
+}
+
+const Theme& Theme::blue()
+{
+    return darkTheme();
+}
+
+const Theme& Theme::green()
+{
+    return darkTheme();
+}
+
+const Theme& Theme::current()
+{
+    return *activePalette();
+}
+
+ThemeMode Theme::currentMode()
+{
+    return current().mode;
+}
+
+bool Theme::isDark()
+{
+    return currentMode() == ThemeMode::dark;
+}
+
+void Theme::setCurrent(const Theme& theme)
+{
+    activePalette() = &theme;
+}
+
+void Theme::setCurrentMode(ThemeMode mode)
+{
+    setCurrent (mode == ThemeMode::light ? lightTheme() : darkTheme());
+}
+
+const Theme*& Theme::activePalette()
+{
+    static const Theme* palette = &darkTheme();
+    return palette;
+}
+
 LookAndFeel::LookAndFeel()
     : LookAndFeel (TypefaceData {}, true) {
 }
@@ -47,10 +216,12 @@ void LookAndFeel::applyColours(juce::LookAndFeel& lookAndFeel) {
     lookAndFeel.setColour(juce::Slider::textBoxHighlightColourId, Colours::accentColor().withMultipliedAlpha(0.5f));
     lookAndFeel.setColour(juce::Slider::trackColourId, Colours::grey().brighter(0.3f));
     lookAndFeel.setColour(juce::Slider::backgroundColourId, Colours::dark());
-    lookAndFeel.setColour(sliderThumbOutlineColourId, juce::Colours::white);
+    lookAndFeel.setColour(sliderThumbOutlineColourId, Colours::text());
 
     // buttons
     lookAndFeel.setColour(juce::TextButton::buttonColourId, Colours::veryDark());
+    lookAndFeel.setColour(juce::TextButton::textColourOffId, Colours::text());
+    lookAndFeel.setColour(juce::TextButton::textColourOnId, Colours::textOnAccent());
 
     // windows & menus
     lookAndFeel.setColour(juce::ResizableWindow::backgroundColourId, Colours::veryDark().brighter(0.1f));
@@ -67,43 +238,46 @@ void LookAndFeel::applyColours(juce::LookAndFeel& lookAndFeel) {
     lookAndFeel.setColour(juce::TextButton::buttonOnColourId, Colours::darker());
     lookAndFeel.setColour(juce::AlertWindow::outlineColourId, Colours::grey().withAlpha(0.5f));
     lookAndFeel.setColour(juce::AlertWindow::backgroundColourId, Colours::darkerer());
-    lookAndFeel.setColour(juce::AlertWindow::textColourId, Dracula::foreground);
+    lookAndFeel.setColour(juce::AlertWindow::textColourId, Colours::text());
     lookAndFeel.setColour(juce::ColourSelector::backgroundColourId, Colours::darker());
 
     // combo box
     lookAndFeel.setColour(juce::ComboBox::backgroundColourId, Colours::veryDark());
     lookAndFeel.setColour(juce::ComboBox::outlineColourId, Colours::veryDark());
-    lookAndFeel.setColour(juce::ComboBox::arrowColourId, juce::Colours::white);
+    lookAndFeel.setColour(juce::ComboBox::textColourId, Colours::text());
+    lookAndFeel.setColour(juce::ComboBox::arrowColourId, Colours::text());
 
     // text box
     lookAndFeel.setColour(juce::TextEditor::backgroundColourId, Colours::veryDark());
+    lookAndFeel.setColour(juce::TextEditor::textColourId, Colours::text());
     lookAndFeel.setColour(juce::TextEditor::outlineColourId, Colours::grey().withAlpha(0.32f));
     lookAndFeel.setColour(juce::TextEditor::focusedOutlineColourId, Colours::accentColor());
-    lookAndFeel.setColour(juce::CaretComponent::caretColourId, Dracula::foreground);
+    lookAndFeel.setColour(juce::CaretComponent::caretColourId, Colours::text());
     lookAndFeel.setColour(juce::TextEditor::highlightColourId, Colours::accentColor());
-    lookAndFeel.setColour(juce::TextEditor::highlightedTextColourId, Colours::veryDark());
+    lookAndFeel.setColour(juce::TextEditor::highlightedTextColourId, Colours::textOnAccent());
 
     // list box
     lookAndFeel.setColour(juce::ListBox::backgroundColourId, Colours::darker());
+    lookAndFeel.setColour(juce::ListBox::textColourId, Colours::text());
 
     // scroll bar
-    lookAndFeel.setColour(juce::ScrollBar::thumbColourId, juce::Colours::white);
+    lookAndFeel.setColour(juce::ScrollBar::thumbColourId, Colours::textMuted());
     lookAndFeel.setColour(juce::ScrollBar::trackColourId, Colours::veryDark());
     lookAndFeel.setColour(juce::ScrollBar::backgroundColourId, Colours::veryDark());
 
     // custom components
-    lookAndFeel.setColour(effectComponentBackgroundColourId, juce::Colours::transparentBlack);
+    lookAndFeel.setColour(effectComponentBackgroundColourId, Colours::transparent());
     lookAndFeel.setColour(effectComponentHandleColourId, Colours::veryDark());
 
     // code editor
-    lookAndFeel.setColour(juce::CodeEditorComponent::backgroundColourId, Colours::darker());
-    lookAndFeel.setColour(juce::CodeEditorComponent::defaultTextColourId, Dracula::foreground);
+    lookAndFeel.setColour(juce::CodeEditorComponent::backgroundColourId, Colours::codeBackground());
+    lookAndFeel.setColour(juce::CodeEditorComponent::defaultTextColourId, Colours::codeForeground());
     lookAndFeel.setColour(juce::CodeEditorComponent::lineNumberBackgroundId, Colours::veryDark());
-    lookAndFeel.setColour(juce::CodeEditorComponent::lineNumberTextId, Dracula::foreground);
-    lookAndFeel.setColour(juce::CodeEditorComponent::highlightColourId, Colours::grey());
+    lookAndFeel.setColour(juce::CodeEditorComponent::lineNumberTextId, Colours::codeForeground());
+    lookAndFeel.setColour(juce::CodeEditorComponent::highlightColourId, Colours::codeSelection());
 
     // progress bar
-    lookAndFeel.setColour(juce::ProgressBar::backgroundColourId, juce::Colours::transparentBlack);
+    lookAndFeel.setColour(juce::ProgressBar::backgroundColourId, Colours::transparent());
     lookAndFeel.setColour(juce::ProgressBar::foregroundColourId, Colours::accentColor());
 }
 
@@ -149,7 +323,7 @@ void LookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
 
         auto textArea = getLabelBorderSize (label).subtractedFrom (label.getLocalBounds());
 
-        g.drawFittedText (label.getText(), textArea, label.getJustificationType(),
+        osci::LookAndFeelHelpers::drawFittedText (g, label.getText(), textArea, label.getJustificationType(),
             juce::jmax (1, (int) ((float) textArea.getHeight() / font.getHeight())),
             label.getMinimumHorizontalScale());
 
@@ -281,12 +455,10 @@ void LookAndFeel::drawGroupComponentOutline(juce::Graphics& g, int width, int he
 
     g.setColour(group.findColour(juce::GroupComponent::textColourId).withMultipliedAlpha(alpha));
     g.setFont(f);
-    g.drawText(text,
-        juce::roundToInt(header.getX() + x + textX), header.getY() + 7,
-        juce::roundToInt(textW),
-        juce::roundToInt(textH),
-        juce::Justification::centred, true
-    );
+    g.drawText (text,
+                juce::Rectangle<float> (header.getX() + x + textX, header.getY() + 7.0f, textW, textH),
+                juce::Justification::centred,
+                true);
 }
 
 void LookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos, float minSliderPos, float maxSliderPos, const juce::Slider::SliderStyle style, juce::Slider& slider) {
@@ -369,7 +541,7 @@ void LookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, i
                             .translated(centre.x, centre.y);
         marker.applyTransform(transform);
 
-        g.setColour(juce::Colours::white.withAlpha(disabledAlpha));
+        g.setColour(Colours::text().withAlpha(disabledAlpha));
         g.fillPath(marker);
     }
 }
@@ -404,7 +576,7 @@ juce::TextLayout LookAndFeel::layoutTooltipText(const juce::String& text, juce::
 }
 
 juce::Rectangle<int> LookAndFeel::getTooltipBounds (const juce::String& tipText, juce::Point<int> screenPos, juce::Rectangle<int> parentArea) {
-    const juce::TextLayout tl (layoutTooltipText(tipText, juce::Colours::black));
+    const juce::TextLayout tl (layoutTooltipText(tipText, Colours::text()));
 
     auto w = (int) (tl.getWidth() + 14.0f);
     auto h = (int) (tl.getHeight() + 6.0f);
@@ -436,18 +608,18 @@ void LookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& butto
 juce::CodeEditorComponent::ColourScheme LookAndFeel::getDefaultColourScheme() {
     juce::CodeEditorComponent::ColourScheme cs;
 
-    static const juce::CodeEditorComponent::ColourScheme::TokenType types[] = {
-        {"Error", juce::Colour(Dracula::red)},
-        {"Comment", juce::Colour(Dracula::comment)},
-        {"Keyword", juce::Colour(Dracula::pink)},
-        {"Operator", juce::Colour(Dracula::foreground)},
-        {"Identifier", juce::Colour(Dracula::foreground)},
-        {"Integer", juce::Colour(Dracula::purple)},
-        {"Float", juce::Colour(Dracula::purple)},
-        {"String", juce::Colour(Dracula::yellow)},
-        {"Bracket", juce::Colour(Dracula::foreground)},
-        {"Punctuation", juce::Colour(Dracula::pink)},
-        {"Preprocessor Text", juce::Colour(Dracula::comment)}
+    const juce::CodeEditorComponent::ColourScheme::TokenType types[] = {
+        {"Error", Colours::codeRed()},
+        {"Comment", Colours::codeComment()},
+        {"Keyword", Colours::codePink()},
+        {"Operator", Colours::codeForeground()},
+        {"Identifier", Colours::codeForeground()},
+        {"Integer", Colours::codePurple()},
+        {"Float", Colours::codePurple()},
+        {"String", Colours::codeYellow()},
+        {"Bracket", Colours::codeForeground()},
+        {"Punctuation", Colours::codePink()},
+        {"Preprocessor Text", Colours::codeComment()}
     };
 
     for (auto& t : types) {
@@ -482,16 +654,16 @@ void LookAndFeel::drawCallOutBoxBackground(juce::CallOutBox& box, juce::Graphics
         cachedImage = juce::Image(juce::Image::ARGB, box.getWidth(), box.getHeight(), true);
         juce::Graphics g2(cachedImage);
 
-        juce::DropShadow(juce::Colours::black.withAlpha(0.7f), 8, juce::Point<int>(0, 2)).drawForPath(g2, path);
+        juce::DropShadow(Colours::shadow().withAlpha(0.7f), 8, juce::Point<int>(0, 2)).drawForPath(g2, path);
     }
 
-    g.setColour(juce::Colours::black);
+    g.setColour(Colours::shadow());
     g.drawImageAt(cachedImage, 0, 0);
 
     g.setColour(Colours::darker());
     g.fillPath(path);
 
-    g.setColour(juce::Colours::black);
+    g.setColour(Colours::outline());
     g.strokePath(path, juce::PathStrokeType(1.0f));
 }
 
@@ -528,7 +700,7 @@ void LookAndFeel::customDrawLinearProgressBar(juce::Graphics& g, const juce::Pro
         g.fillRoundedRectangle(barBounds, rectRadius);
     } else {
         if (progress == -2) {
-            background = juce::Colours::red;
+            background = Colours::danger();
             text = "Error";
         }
         
@@ -559,11 +731,14 @@ void LookAndFeel::customDrawLinearProgressBar(juce::Graphics& g, const juce::Pro
         g.fillPath(p);
     }
     
-    g.setColour(juce::Colours::white);
+    g.setColour(Colours::text());
     juce::Font font = juce::Font(juce::FontOptions((float) height * 0.9f, juce::Font::bold));
     g.setFont(font);
 
-    g.drawText(text, 0, 0, width, height, juce::Justification::centred, false);
+    g.drawText (text,
+                juce::Rectangle<float> (0.0f, 0.0f, static_cast<float> (width), static_cast<float> (height)),
+                juce::Justification::centred,
+                false);
 }
 
 juce::Typeface::Ptr LookAndFeel::getTypefaceForFont(const juce::Font& font) {
@@ -616,7 +791,7 @@ void LookAndFeel::drawAlertBox(juce::Graphics& g, juce::AlertWindow& alert,
                 static_cast<float>(iconRect.getX()), static_cast<float>(iconRect.getBottom()));
 
             icon = icon.createPathWithRoundedCorners(5.0f);
-            iconColour = Dracula::red.withAlpha(0.5f);
+            iconColour = Colours::danger().withAlpha(0.5f);
         } else {
             iconColour = Colours::accentColor().withAlpha(0.4f);
             character = alert.getAlertType() == juce::AlertWindow::InfoIcon ? 'i' : '?';
@@ -694,14 +869,14 @@ void LookAndFeel::drawPopupMenuBackground(juce::Graphics& g, int width, int heig
     constexpr float radius = 8.0f;
 
     // Clear to transparent so rounded corners don't show the window background
-    g.fillAll(juce::Colours::transparentBlack);
+    g.fillAll(Colours::transparent());
 
     // Background fill
     g.setColour(Colours::veryDark());
     g.fillRoundedRectangle(bounds, radius);
 
     // Subtle border
-    g.setColour(juce::Colours::white.withAlpha(0.10f));
+    g.setColour(Colours::outlineSubtle());
     g.drawRoundedRectangle(bounds.reduced(0.5f), radius, 1.0f);
 }
 
@@ -712,7 +887,7 @@ void LookAndFeel::drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int
                                                const juce::Drawable* icon, const juce::Colour* textColour) {
     if (isSeparator) {
         auto sepArea = area.reduced(8, 0);
-        g.setColour(juce::Colours::white.withAlpha(0.08f));
+        g.setColour(Colours::neutralStroke(0.08f));
         g.fillRect(sepArea.getX(), area.getCentreY(), sepArea.getWidth(), 1);
         return;
     }
@@ -727,9 +902,9 @@ void LookAndFeel::drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int
     }
 
     auto textColourToUse = isHighlighted && isActive
-                         ? juce::Colours::white
-                         : (isActive ? juce::Colours::white.withAlpha(0.88f)
-                                     : juce::Colours::white.withAlpha(0.35f));
+                         ? Colours::textOnAccent()
+                         : (isActive ? Colours::text().withAlpha(0.88f)
+                                     : Colours::text().withAlpha(0.35f));
     if (textColour != nullptr)
         textColourToUse = *textColour;
 
@@ -766,12 +941,12 @@ void LookAndFeel::drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int
     }
 
     if (text.isNotEmpty())
-        g.drawFittedText(text, textArea, juce::Justification::centredLeft, 1);
+        osci::LookAndFeelHelpers::drawFittedText (g, text, textArea, juce::Justification::centredLeft, 1);
 
     if (shortcutKeyText.isNotEmpty()) {
         g.setColour(textColourToUse.withAlpha(0.5f));
         g.setFont(juce::Font(11.0f));
-        g.drawText(shortcutKeyText, textArea, juce::Justification::centredRight, true);
+        g.drawText(shortcutKeyText, textArea.toFloat(), juce::Justification::centredRight, true);
     }
 }
 

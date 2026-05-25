@@ -20,11 +20,12 @@ public:
         juce::ListBox::paint (g);
 
         if (!hasListItems() && noItemsMessage.isNotEmpty()) {
-            g.setColour (juce::Colours::grey);
+            g.setColour (Colours::textSubtle());
             g.setFont (0.5f * static_cast<float>(getRowHeight()));
             g.drawText (noItemsMessage,
-                        0, 0, getWidth(), getHeight() / 2,
-                        juce::Justification::centred, true);
+                        juce::Rectangle<float> (0.0f, 0.0f, static_cast<float> (getWidth()), static_cast<float> (getHeight()) * 0.5f),
+                        juce::Justification::centred,
+                        true);
         }
     }
 

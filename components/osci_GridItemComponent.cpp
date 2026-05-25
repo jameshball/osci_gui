@@ -9,14 +9,14 @@ GridItemComponent::TextLayoutMetrics GridItemComponent::computeTextLayouts (int 
     if (metrics.hasDescription) {
         juce::AttributedString headingString;
         headingString.setJustification (juce::Justification::topLeft);
-        headingString.append (itemName, juce::FontOptions (17.0f, juce::Font::bold), juce::Colours::white);
+        headingString.append (itemName, juce::FontOptions (17.0f, juce::Font::bold), Colours::text());
 
         metrics.headingLayout.createLayout (headingString, static_cast<float> (textWidth));
         metrics.headingHeight = metrics.headingLayout.getHeight();
 
         juce::AttributedString bodyString;
         bodyString.setJustification (juce::Justification::topLeft);
-        bodyString.append (description, juce::FontOptions (14.0f), juce::Colours::white.withAlpha (0.85f));
+        bodyString.append (description, juce::FontOptions (14.0f), Colours::textMuted());
 
         metrics.bodyLayout.createLayout (bodyString, static_cast<float> (textWidth));
         metrics.bodyHeight = metrics.bodyLayout.getHeight();
@@ -68,12 +68,12 @@ void GridItemComponent::paint (juce::Graphics& g) {
     }
 
     if (! isEnabled()) {
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        g.setColour (Colours::invertedNeutral (0.35f));
         g.fillRoundedRectangle (bounds, cornerRadius);
     }
 
     if (locked) {
-        g.setColour (juce::Colours::black.withAlpha (0.4f));
+        g.setColour (Colours::invertedNeutral (0.4f));
         g.fillRoundedRectangle (bounds, cornerRadius);
     }
 }
@@ -95,7 +95,7 @@ void GridItemComponent::paintListItem (juce::Graphics& g, juce::Rectangle<float>
 
     const auto outlineColour = description.isNotEmpty()
         ? Colours::accentColor()
-        : juce::Colour::fromRGB (160, 160, 160);
+        : Colours::outline();
     g.setColour (outlineColour.withAlpha (description.isNotEmpty() ? 0.8f : 0.9f));
     g.drawRoundedRectangle (bounds, cornerRadius, 1.0f);
 
@@ -115,7 +115,7 @@ void GridItemComponent::paintListItem (juce::Graphics& g, juce::Rectangle<float>
             textLayouts.bodyLayout.draw (g, textBounds);
         }
     } else {
-        g.setColour (juce::Colours::white);
+        g.setColour (Colours::text());
         g.setFont (juce::FontOptions (16.0f));
         g.drawText (itemName, textArea, juce::Justification::centred, true);
     }
@@ -126,7 +126,7 @@ void GridItemComponent::paintIconTile (juce::Graphics& g, juce::Rectangle<float>
     tilePath.addRoundedRectangle (bounds, cornerRadius);
 
     const auto shadowAlpha = selected ? 0.28f : 0.13f + animationProgress * 0.12f;
-    juce::DropShadow (juce::Colours::black.withAlpha (shadowAlpha),
+    juce::DropShadow (Colours::shadow().withAlpha (shadowAlpha),
                       selected ? 18 : juce::roundToInt (10.0f + 8.0f * animationProgress),
                       { 0, selected ? 8 : 5 }).drawForPath (g, tilePath);
 
@@ -140,7 +140,7 @@ void GridItemComponent::paintIconTile (juce::Graphics& g, juce::Rectangle<float>
     g.fillPath (tilePath);
 
     const auto outlineAlpha = selected ? 0.88f : 0.24f + animationProgress * 0.3f;
-    g.setColour ((selected ? Colours::accentColor() : juce::Colours::white).withAlpha (outlineAlpha));
+    g.setColour ((selected ? Colours::accentColor() : Colours::outline()).withAlpha (outlineAlpha));
     g.drawRoundedRectangle (bounds.reduced (0.5f), cornerRadius, selected ? 1.5f : 1.0f);
 
     auto content = bounds.reduced (20.0f, 18.0f);
@@ -156,9 +156,9 @@ void GridItemComponent::paintIconTile (juce::Graphics& g, juce::Rectangle<float>
         g.setOpacity (1.0f);
     }
 
-    g.setColour (juce::Colours::white.withAlpha (selected ? 1.0f : 0.88f));
+    g.setColour (Colours::text().withAlpha (selected ? 1.0f : 0.88f));
     g.setFont (juce::FontOptions (18.0f, juce::Font::bold));
-    g.drawFittedText (itemName, labelArea.toNearestInt(), juce::Justification::centred, 1);
+    osci::LookAndFeelHelpers::drawFittedText (g, itemName, labelArea, juce::Justification::centred, 1);
 }
 
 void GridItemComponent::resized() {

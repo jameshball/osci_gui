@@ -26,54 +26,20 @@ namespace Svg {
 
 class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParameter::Listener, public juce::AsyncUpdater {
  public:
-    SvgButton(juce::String name, juce::String svg, juce::Colour colour, juce::Colour colourOn, juce::AudioProcessorParameter* toggle = nullptr, juce::String toggledSvg = "") : juce::DrawableButton(name, juce::DrawableButton::ButtonStyle::ImageFitted), toggle(toggle), updater(this), svgSource(svg) {
-        auto doc = juce::XmlDocument::parse(svg);
-        if (doc == nullptr) {
+    SvgButton(juce::String name, juce::String svg, juce::Colour colour, juce::Colour colourOn, juce::AudioProcessorParameter* toggle = nullptr, juce::String toggledSvg = "") : juce::DrawableButton(name, juce::DrawableButton::ButtonStyle::ImageFitted), toggle(toggle), updater(this), svgSource(std::move(svg)), toggledSvgSource(std::move(toggledSvg)) {
+        rebuildImages (colour, colourOn);
+
+        if (normalImage == nullptr) {
             return;
-        }
-
-        Svg::applyFill(doc.get(), colour);
-        normalImage = juce::Drawable::createFromSVG(*doc);
-        Svg::applyFill(doc.get(), colour.withBrightness(0.7f));
-        overImage = juce::Drawable::createFromSVG(*doc);
-        Svg::applyFill(doc.get(), colour.withBrightness(0.5f));
-        downImage = juce::Drawable::createFromSVG(*doc);
-        Svg::applyFill(doc.get(), colour.withBrightness(0.3f));
-        disabledImage = juce::Drawable::createFromSVG(*doc);
-
-        // If a toggled SVG is provided, use it for the "on" state images
-        if (toggledSvg.isNotEmpty()) {
-            auto toggledDoc = juce::XmlDocument::parse(toggledSvg);
-            if (toggledDoc != nullptr) {
-                Svg::applyFill(toggledDoc.get(), colourOn);
-                normalImageOn = juce::Drawable::createFromSVG(*toggledDoc);
-                Svg::applyFill(toggledDoc.get(), colourOn.withBrightness(0.7f));
-                overImageOn = juce::Drawable::createFromSVG(*toggledDoc);
-                Svg::applyFill(toggledDoc.get(), colourOn.withBrightness(0.5f));
-                downImageOn = juce::Drawable::createFromSVG(*toggledDoc);
-                Svg::applyFill(toggledDoc.get(), colourOn.withBrightness(0.15f));
-                disabledImageOn = juce::Drawable::createFromSVG(*toggledDoc);
-            }
-        } else {
-            Svg::applyFill(doc.get(), colourOn);
-            normalImageOn = juce::Drawable::createFromSVG(*doc);
-            Svg::applyFill(doc.get(), colourOn.withBrightness(0.7f));
-            overImageOn = juce::Drawable::createFromSVG(*doc);
-            Svg::applyFill(doc.get(), colourOn.withBrightness(0.5f));
-            downImageOn = juce::Drawable::createFromSVG(*doc);
-            Svg::applyFill(doc.get(), colourOn.withBrightness(0.15f));
-            disabledImageOn = juce::Drawable::createFromSVG(*doc);
         }
 
         basePath = normalImage->getOutlineAsPath();
 
-        getLookAndFeel().setColour(juce::DrawableButton::backgroundOnColourId, juce::Colours::transparentWhite);
+        setColour(juce::DrawableButton::backgroundOnColourId, Colours::transparent());
 
         if (colour != colourOn) {
             setClickingTogglesState(true);
         }
-
-        setImages(normalImage.get(), overImage.get(), downImage.get(), disabledImage.get(), normalImageOn.get(), overImageOn.get(), downImageOn.get(), disabledImageOn.get());
 
         if (toggle != nullptr) {
             toggle->addListener(this);
@@ -130,7 +96,7 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
 
     void paintOverChildren(juce::Graphics& g) override {
         if (pulseUsed && getToggleState()) {
-            g.setColour(juce::Colours::black.withAlpha(juce::jlimit(0.0f, 1.0f, colourFade / 1.5f)));
+            g.setColour(Colours::shadow().withAlpha(juce::jlimit(0.0f, 1.0f, colourFade / 1.5f)));
             g.fillPath(resizedPath);
         }
     }
@@ -179,6 +145,9 @@ private:
         .build();
 
     juce::String svgSource;
+    juce::String toggledSvgSource;
+    juce::Colour lastOffColour;
+    juce::Colour lastOnColour;
 
 public:
     // Allows callers to adjust the placement/scale/rotation of the SVG within the button.
@@ -201,24 +170,51 @@ public:
 
     // Rebuild the "on" state images with a new colour.
     void setOnColour(juce::Colour colourOn) {
-        auto doc = juce::XmlDocument::parse(svgSource);
-        if (doc == nullptr) {
-            return;
-        }
+        rebuildImages (lastOffColour, colourOn);
+    }
 
-        Svg::applyFill(doc.get(), colourOn);
-        normalImageOn = juce::Drawable::createFromSVG(*doc);
-        Svg::applyFill(doc.get(), colourOn.withBrightness(0.7f));
-        overImageOn = juce::Drawable::createFromSVG(*doc);
-        Svg::applyFill(doc.get(), colourOn.withBrightness(0.5f));
-        downImageOn = juce::Drawable::createFromSVG(*doc);
-        Svg::applyFill(doc.get(), colourOn.withBrightness(0.3f));
-        disabledImageOn = juce::Drawable::createFromSVG(*doc);
-        setImages(normalImage.get(), overImage.get(), downImage.get(), disabledImage.get(),
-                  normalImageOn.get(), overImageOn.get(), downImageOn.get(), disabledImageOn.get());
+    void setColours(juce::Colour colour, juce::Colour colourOn) {
+        rebuildImages (colour, colourOn);
     }
 
 private:
+    static juce::Colour hoverColour (juce::Colour colour) { return colour.interpolatedWith (Colours::accentColor(), 0.10f); }
+    static juce::Colour downColour (juce::Colour colour) { return colour.interpolatedWith (Colours::shadow(), Theme::isDark() ? 0.25f : 0.18f); }
+    static juce::Colour disabledColour (juce::Colour colour) { return colour.withMultipliedAlpha (0.36f); }
+
+    std::unique_ptr<juce::Drawable> createImage (const juce::String& source, juce::Colour colour) {
+        auto doc = juce::XmlDocument::parse (source);
+        if (doc == nullptr) {
+            return nullptr;
+        }
+
+        Svg::applyFill (doc.get(), colour);
+        return juce::Drawable::createFromSVG (*doc);
+    }
+
+    void rebuildImages (juce::Colour colour, juce::Colour colourOn) {
+        lastOffColour = colour;
+        lastOnColour = colourOn;
+
+        const auto& onSource = toggledSvgSource.isNotEmpty() ? toggledSvgSource : svgSource;
+
+        normalImage = createImage (svgSource, colour);
+        overImage = createImage (svgSource, hoverColour (colour));
+        downImage = createImage (svgSource, downColour (colour));
+        disabledImage = createImage (svgSource, disabledColour (colour));
+
+        normalImageOn = createImage (onSource, colourOn);
+        overImageOn = createImage (onSource, hoverColour (colourOn));
+        downImageOn = createImage (onSource, downColour (colourOn));
+        disabledImageOn = createImage (onSource, disabledColour (colourOn));
+
+        if (normalImage != nullptr) {
+            basePath = normalImage->getOutlineAsPath();
+        }
+
+        applyImageTransform();
+    }
+
     void applyImageTransform() {
         auto apply = [this](std::unique_ptr<juce::Drawable>& d) {
             if (d != nullptr) {

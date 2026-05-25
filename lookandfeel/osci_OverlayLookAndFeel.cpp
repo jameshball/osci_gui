@@ -10,28 +10,28 @@ OverlayLookAndFeel::OverlayLookAndFeel()
 void OverlayLookAndFeel::applyOverlayColours (juce::LookAndFeel& lookAndFeel) {
     lookAndFeel.setColour (juce::TextButton::buttonColourId, buttonBackground());
     lookAndFeel.setColour (juce::TextButton::buttonOnColourId, buttonDownBackground());
-    lookAndFeel.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
-    lookAndFeel.setColour (juce::TextButton::textColourOnId, juce::Colours::white);
+    lookAndFeel.setColour (juce::TextButton::textColourOffId, Colours::text());
+    lookAndFeel.setColour (juce::TextButton::textColourOnId, Colours::text());
 
     lookAndFeel.setColour (juce::ComboBox::backgroundColourId, buttonBackground());
-    lookAndFeel.setColour (juce::ComboBox::outlineColourId, juce::Colours::transparentBlack);
-    lookAndFeel.setColour (juce::ComboBox::textColourId, juce::Colours::white);
-    lookAndFeel.setColour (juce::ComboBox::arrowColourId, juce::Colours::white);
+    lookAndFeel.setColour (juce::ComboBox::outlineColourId, Colours::transparent());
+    lookAndFeel.setColour (juce::ComboBox::textColourId, Colours::text());
+    lookAndFeel.setColour (juce::ComboBox::arrowColourId, Colours::text());
 
     lookAndFeel.setColour (juce::TextEditor::backgroundColourId, buttonBackground());
     lookAndFeel.setColour (juce::TextEditor::outlineColourId, containerOutline().withMultipliedAlpha (0.72f));
     lookAndFeel.setColour (juce::TextEditor::focusedOutlineColourId, Colours::accentColor().withAlpha (0.9f));
-    lookAndFeel.setColour (juce::TextEditor::textColourId, juce::Colours::white);
+    lookAndFeel.setColour (juce::TextEditor::textColourId, Colours::text());
     lookAndFeel.setColour (juce::TextEditor::highlightColourId, Colours::accentColor());
-    lookAndFeel.setColour (juce::CaretComponent::caretColourId, juce::Colours::white);
+    lookAndFeel.setColour (juce::CaretComponent::caretColourId, Colours::text());
 
-    lookAndFeel.setColour (juce::ListBox::backgroundColourId, juce::Colours::transparentBlack);
+    lookAndFeel.setColour (juce::ListBox::backgroundColourId, Colours::transparent());
     lookAndFeel.setColour (juce::ListBox::outlineColourId, containerOutline());
-    lookAndFeel.setColour (juce::ListBox::textColourId, juce::Colours::white);
+    lookAndFeel.setColour (juce::ListBox::textColourId, Colours::text());
 
-    lookAndFeel.setColour (juce::ToggleButton::tickColourId, juce::Colours::white);
-    lookAndFeel.setColour (juce::ScrollBar::thumbColourId, juce::Colours::white.withAlpha (0.76f));
-    lookAndFeel.setColour (juce::ScrollBar::trackColourId, juce::Colours::transparentBlack);
+    lookAndFeel.setColour (juce::ToggleButton::tickColourId, Colours::text());
+    lookAndFeel.setColour (juce::ScrollBar::thumbColourId, Colours::text().withAlpha (0.76f));
+    lookAndFeel.setColour (juce::ScrollBar::trackColourId, Colours::transparent());
 }
 
 juce::Colour OverlayLookAndFeel::containerBackground() {
@@ -56,9 +56,9 @@ juce::Colour OverlayLookAndFeel::tickBoxBackground() {
 
 void OverlayLookAndFeel::configureListBox (juce::ListBox& listBox) {
     listBox.setOutlineThickness (1);
-    listBox.setColour (juce::ListBox::backgroundColourId, juce::Colours::transparentBlack);
+    listBox.setColour (juce::ListBox::backgroundColourId, Colours::transparent());
     listBox.setColour (juce::ListBox::outlineColourId, containerOutline());
-    listBox.setColour (juce::ListBox::textColourId, juce::Colours::white);
+    listBox.setColour (juce::ListBox::textColourId, Colours::text());
 }
 
 void OverlayLookAndFeel::paintContainerBackground (juce::Graphics& g, juce::Rectangle<int> bounds) {
@@ -166,7 +166,7 @@ void OverlayLookAndFeel::drawLevelMeter (juce::Graphics& g, int width, int heigh
                                     .withWidth (blockWidth);
         const auto blockColour = i < activeBlocks
                                ? Colours::accentColor().withAlpha (0.76f)
-                               : juce::Colours::white.withAlpha (0.05f);
+                               : Colours::neutralFill (0.05f);
 
         g.setColour (blockColour);
         g.fillRoundedRectangle (block, 2.0f);

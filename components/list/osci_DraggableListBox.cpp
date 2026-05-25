@@ -246,7 +246,7 @@ void DraggableListBox::paintOverChildren(juce::Graphics& g)
     const int x = 0;
     const int w = getVisibleRowWidth();
     const int thickness = 3;
-    const juce::Colour colour = juce::Colours::lime.withAlpha(0.9f);
+    const juce::Colour colour = osci::Colours::accentColor().withAlpha(0.9f);
 
     const float yOffset = -2.5f; // Offset to center the line visually
 

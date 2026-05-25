@@ -9,7 +9,7 @@ class SliderTextBox : public juce::Slider {
         setIncDecButtonsMode(juce::Slider::IncDecButtonMode::incDecButtonsDraggable_AutoDirection);
         setMouseDragSensitivity(2 * (max - min) / step);
         setSliderSnapsToMousePosition(false);
-        setColour(juce::Slider::trackColourId, juce::Colours::transparentBlack);
+        setColour(juce::Slider::trackColourId, osci::Colours::transparent());
         setSize(60, 20);
     }
 

@@ -59,14 +59,14 @@ private:
             g.fillRoundedRectangle(knobBounds, knobR);
 
             // Handle highlight line
-            g.setColour(juce::Colours::white.withAlpha(0.25f));
+            g.setColour(osci::Colours::neutralFill(0.25f));
             auto highlightBounds = knobBounds.reduced(1.5f, trackH * 0.25f);
             g.fillRoundedRectangle(highlightBounds, 1.0f);
 
             g.restoreState();
 
             // Track border (outside clip so it's not clipped)
-            g.setColour(juce::Colours::white.withAlpha(hovering ? 0.15f : 0.08f));
+            g.setColour(osci::Colours::neutralStroke(hovering ? 0.15f : 0.08f));
             g.drawRoundedRectangle(bounds.reduced(0.5f), r, 1.0f);
         }
 
