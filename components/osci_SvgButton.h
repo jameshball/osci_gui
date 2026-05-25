@@ -177,6 +177,12 @@ public:
         rebuildImages (colour, colourOn);
     }
 
+    void setSvgSources(juce::String svg, juce::String toggledSvg = {}) {
+        svgSource = std::move(svg);
+        toggledSvgSource = std::move(toggledSvg);
+        rebuildImages(lastOffColour, lastOnColour);
+    }
+
 private:
     static juce::Colour hoverColour (juce::Colour colour) { return colour.interpolatedWith (Colours::accentColor(), 0.10f); }
     static juce::Colour downColour (juce::Colour colour) { return colour.interpolatedWith (Colours::shadow(), Theme::isDark() ? 0.25f : 0.18f); }
