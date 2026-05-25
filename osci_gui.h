@@ -67,6 +67,7 @@
 #include "components/osci_DownloadProgressComponent.h"
 #include "components/osci_DownloaderComponent.h"
 #include "components/osci_StopwatchComponent.h"
+#include "components/osci_VolumeComponent.h"
 #include "components/osci_CustomTooltipWindow.h"
 #include "components/osci_OverlayComponent.h"
 #include "components/osci_ErrorOverlay.h"
