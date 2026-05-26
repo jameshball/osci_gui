@@ -52,7 +52,7 @@ public:
         float value = getValue();
 
         g.setFont(juce::Font(13.0f));
-        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.setColour(osci::Colours::text().withAlpha(0.9f));
 
         juce::String text = integerMode ? juce::String((int)value)
                                         : juce::String(value, 1);
@@ -130,8 +130,8 @@ private:
         inlineEditor = InlineEditorHelper::create(
             initialText, getContentArea().reduced(2),
             { commitFn, cancelFn },
-            osci::Colours::evenDarker(), juce::Colours::white,
-            juce::Colours::transparentBlack, 13.0f);
+            osci::Colours::surfaceSunken(), osci::Colours::text(),
+            osci::Colours::transparent(), 13.0f);
         addAndMakeVisible(*inlineEditor);
         inlineEditor->grabKeyboardFocus();
         repaint();

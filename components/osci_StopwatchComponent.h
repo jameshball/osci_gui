@@ -8,8 +8,12 @@ class StopwatchComponent : public juce::Component, public juce::Timer {
         juce::Font font;
         font.setTypefaceName(juce::Font::getDefaultMonospacedFontName());
         label.setFont(font);
-        label.setColour(juce::Label::textColourId, juce::Colours::red);
+        label.setColour(juce::Label::textColourId, osci::Colours::danger());
         label.setJustificationType(juce::Justification::right);
+    }
+
+    void lookAndFeelChanged() override {
+        label.setColour(juce::Label::textColourId, osci::Colours::danger());
     }
     
     void start() {

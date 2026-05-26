@@ -1,5 +1,7 @@
 #include "osci_VisualiserRenderer.h"
 
+#include "../lookandfeel/osci_LookAndFeel.h"
+
 #include "AfterglowFragmentShader.glsl"
 #include "AfterglowVertexShader.glsl"
 #include "BlurFragmentShader.glsl"
@@ -20,6 +22,12 @@
 #include <utility>
 
 namespace {
+
+juce::Colour visualiserScreenBaseColour()
+{
+    const auto themeBase = osci::Colours::surfaceSunken();
+    return themeBase.interpolatedWith (osci::Colours::shadow(), osci::Theme::isDark() ? 0.86f : 0.38f);
+}
 
 juce::Image loadAssetOrFallback(const std::function<juce::Image()>& loader, juce::Image fallback) {
     if (loader != nullptr) {
@@ -63,10 +71,10 @@ juce::Image createFallbackReflectionTextureImage() {
     juce::Image image(juce::Image::ARGB, size, size, true);
     juce::Graphics g(image);
     juce::ColourGradient gradient(
-        juce::Colours::transparentBlack,
+        osci::Colours::transparent(),
         0.0f,
         0.0f,
-        juce::Colours::black.withAlpha(0.35f),
+        osci::Colours::shadow().withAlpha(0.35f),
         0.0f,
         static_cast<float>(size),
         false);
@@ -75,17 +83,41 @@ juce::Image createFallbackReflectionTextureImage() {
     return image;
 }
 
+void drawImageCropToFill(juce::Graphics& g, const juce::Image& source, juce::Rectangle<int> dest) {
+    if (source.isNull() || dest.isEmpty()) {
+        return;
+    }
+
+    const double destAspect = static_cast<double>(dest.getWidth()) / static_cast<double>(dest.getHeight());
+    const auto sourceBounds = VisualiserGeometry::getCropToFillSourceBounds(source.getBounds(), destAspect);
+
+    g.drawImage(source, dest.getX(), dest.getY(), dest.getWidth(), dest.getHeight(),
+                sourceBounds.getX(), sourceBounds.getY(), sourceBounds.getWidth(), sourceBounds.getHeight(), false);
+}
+
+void drawImageAspectFit(juce::Graphics& g, const juce::Image& source, juce::Rectangle<int> dest) {
+    if (source.isNull() || dest.isEmpty()) {
+        return;
+    }
+
+    const double sourceAspect = static_cast<double>(source.getWidth()) / static_cast<double>(source.getHeight());
+    const auto targetBounds = VisualiserGeometry::getAspectFitBoundsForAspect(dest, sourceAspect);
+
+    g.drawImage(source, targetBounds.getX(), targetBounds.getY(), targetBounds.getWidth(), targetBounds.getHeight(),
+                0, 0, source.getWidth(), source.getHeight(), false);
+}
+
 }
 
 VisualiserRenderer::VisualiserRenderer(
     VisualiserParameters &parameters,
     osci::AudioBackgroundThreadManager &threadManager,
-    int resolution,
+    VisualiserRenderSize renderSize,
     double frameRate,
     juce::String threadName
 ) : osci::AudioBackgroundThread("VisualiserRenderer" + threadName, threadManager),
     parameters(parameters),
-    resolution(resolution),
+    packedRenderSize(VisualiserGeometry::packRenderSize(renderSize)),
     frameRate(frameRate)
 {
     openGLContext.setRenderer(this);
@@ -185,10 +217,12 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
             double sweepIncrement = getSweepIncrement();
             double triggerValue = parameters.getTriggerValue();
             bool belowTrigger = false;
+            const auto currentRenderSize = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
+            const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(currentRenderSize);
+            const double startPoint = 1.135 / worldToClipScale.x;
 
             for (int i = 0; i < numSamples; ++i) {
                 long samplePosition = sampleCount - lastTriggerPosition;
-                double startPoint = 1.135;
                 float sweep = samplePosition * sweepIncrement * 2 * startPoint - startPoint;
 
                 float value = channelData[0][i];
@@ -461,11 +495,11 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     glGenBuffers(1, &quadIndexBuffer);
     glGenBuffers(1, &vertexIndexBuffer);
 
-    setupTextures(resolution.load());
+    setupTextures(VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
 
-    // Textures are now sized for the current resolution, so any pending request that
+    // Textures are now sized for the current render size, so any pending request that
     // arrived before the context was ready can be discarded.
-    pendingResolution.store(-1);
+    pendingRenderSize.store(0);
 }
 
 void VisualiserRenderer::openGLContextClosing() {
@@ -511,11 +545,9 @@ void VisualiserRenderer::renderOpenGL() {
     using namespace juce::gl;
 
     if (openGLContext.isActive()) {
-        if (const int requestedResolution = pendingResolution.exchange(-1); requestedResolution > 0) {
-            glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-            lineTexture = makeTexture(requestedResolution, requestedResolution, lineTexture.id);
-            renderTexture = makeTexture(requestedResolution, requestedResolution, renderTexture.id);
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        const auto requestedPackedSize = pendingRenderSize.exchange(0);
+        if (requestedPackedSize != 0) {
+            resizeRenderTextures(VisualiserGeometry::unpackRenderSize(requestedPackedSize));
         }
 
         // One-time DPI diagnostics: log before anything modifies the viewport.
@@ -564,7 +596,7 @@ void VisualiserRenderer::renderOpenGL() {
             juce::Logger::writeToLog(diagMsg);
         }
 
-        juce::OpenGLHelpers::clear(juce::Colours::black);
+        juce::OpenGLHelpers::clear(visualiserScreenBaseColour());
 
         // Mirror mode: display the parent's captured frame
         auto* source = mirrorSource.load();
@@ -581,8 +613,9 @@ void VisualiserRenderer::renderOpenGL() {
             int w = 0, h = 0;
             {
                 juce::SpinLock::ScopedLockType lock(source->capturedPixelsLock);
-                if (source->capturedPixels.empty())
+                if (source->capturedPixels.empty()) {
                     return;
+                }
                 w = source->capturedWidth;
                 h = source->capturedHeight;
                 mirrorPixelBuffer.assign(source->capturedPixels.begin(), source->capturedPixels.end());
@@ -610,12 +643,11 @@ void VisualiserRenderer::renderOpenGL() {
                 }
             }
 
-            // Centered square viewport using full component size (not viewportArea)
-            float minDim = juce::jmin(totalW, totalH);
-            float x = (totalW - minDim) / 2.0f;
-            float y = (totalH - minDim) / 2.0f;
-            glViewport(juce::roundToInt(x), juce::roundToInt(y),
-                       juce::roundToInt(minDim), juce::roundToInt(minDim));
+            // Centered aspect-fit viewport using full component size (not viewportArea)
+            const auto fitted = VisualiserGeometry::getAspectFitBounds(
+                juce::Rectangle<int>(0, 0, juce::roundToInt(totalW), juce::roundToInt(totalH)),
+                VisualiserGeometry::sanitiseRenderSize(w, h));
+            glViewport(fitted.getX(), fitted.getY(), fitted.getWidth(), fitted.getHeight());
 
             setShader(texturedShader.get());
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
@@ -698,17 +730,17 @@ void VisualiserRenderer::viewportChanged(juce::Rectangle<int> area) {
             // The crop rectangle will be applied in drawTexture() via texture coordinates
             float x = area.getX() * renderScale + xOffset;
             float y = area.getY() * renderScale + yOffset;
-            
-            glViewport(juce::roundToInt(x), juce::roundToInt(y), 
+
+            glViewport(juce::roundToInt(x), juce::roundToInt(y),
                        juce::roundToInt(realWidth), juce::roundToInt(realHeight));
         } else {
-            // Original square viewport calculation
-            float minDim = juce::jmin(realWidth, realHeight);
-            float x = (realWidth - minDim) / 2 + area.getX() * renderScale + xOffset;
-            float y = (realHeight - minDim) / 2 - area.getY() * renderScale + yOffset;
+            const auto fitted = VisualiserGeometry::getAspectFitBounds(
+                juce::Rectangle<int>(0, 0, juce::roundToInt(realWidth), juce::roundToInt(realHeight)),
+                VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
+            float x = fitted.getX() + area.getX() * renderScale + xOffset;
+            float y = fitted.getY() - area.getY() * renderScale + yOffset;
 
-            glViewport(juce::roundToInt(x), juce::roundToInt(y), 
-                       juce::roundToInt(minDim), juce::roundToInt(minDim));
+            glViewport(juce::roundToInt(x), juce::roundToInt(y), fitted.getWidth(), fitted.getHeight());
         }
     }
 }
@@ -752,29 +784,40 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     scratchVertices.resize(12 * nPoints);
 }
 
-void VisualiserRenderer::setupTextures(int resolution) {
+void VisualiserRenderer::setupTextures(VisualiserRenderSize size) {
     using namespace juce::gl;
+
+    size = VisualiserGeometry::sanitiseRenderSize(size.width, size.height);
 
     // Create the framebuffer
     glGenFramebuffers(1, &frameBuffer);
+    allocateRenderTextures(size, false);
+}
+
+void VisualiserRenderer::resizeRenderTextures(VisualiserRenderSize size) {
+    allocateRenderTextures(size, true);
+    viewportChanged(viewportArea);
+}
+
+void VisualiserRenderer::allocateRenderTextures(VisualiserRenderSize size, bool reuseExistingTextures) {
+    using namespace juce::gl;
+
+    screenOverlay = getEffectiveScreenOverlay();
+    const auto sizes = VisualiserGeometry::getRenderTargetSizes(size);
+
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-
-    // Create textures
-    lineTexture = makeTexture(resolution, resolution);
-    blur1Texture = makeTexture(512, 512);
-    blur2Texture = makeTexture(512, 512);
-    blur3Texture = makeTexture(128, 128);
-    blur4Texture = makeTexture(128, 128);
-    renderTexture = makeTexture(resolution, resolution);
-
-    screenTexture = createScreenTexture();
-    
+    lineTexture = makeTexture(sizes.output.width, sizes.output.height, reuseExistingTextures ? lineTexture.id : 0);
+    blur1Texture = makeTexture(sizes.tightBlur.width, sizes.tightBlur.height, reuseExistingTextures ? blur1Texture.id : 0);
+    blur2Texture = makeTexture(sizes.tightBlur.width, sizes.tightBlur.height, reuseExistingTextures ? blur2Texture.id : 0);
+    blur3Texture = makeTexture(sizes.wideBlur.width, sizes.wideBlur.height, reuseExistingTextures ? blur3Texture.id : 0);
+    blur4Texture = makeTexture(sizes.wideBlur.width, sizes.wideBlur.height, reuseExistingTextures ? blur4Texture.id : 0);
+    renderTexture = makeTexture(sizes.output.width, sizes.output.height, reuseExistingTextures ? renderTexture.id : 0);
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    glowTexture = makeTexture(512, 512);
+    glowTexture = makeTexture(sizes.tightBlur.width, sizes.tightBlur.height, reuseExistingTextures ? glowTexture.id : 0);
     reflectionTexture = createReflectionTexture();
 #endif
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind
+    screenTexture = createScreenTexture();
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 Texture VisualiserRenderer::makeTexture(int width, int height, GLuint textureID) {
@@ -807,13 +850,12 @@ Texture VisualiserRenderer::makeTexture(int width, int height, GLuint textureID)
     return {textureID, width, height};
 }
 
-void VisualiserRenderer::setResolution(int resolution) {
-    if (resolution <= 0) {
-        return;
-    }
-    if (this->resolution.load() != resolution) {
-        this->resolution.store(resolution);
-        pendingResolution.store(resolution);
+void VisualiserRenderer::setRenderSize(VisualiserRenderSize size) {
+    size = VisualiserGeometry::sanitiseRenderSize(size.width, size.height);
+    const auto packedSize = VisualiserGeometry::packRenderSize(size);
+    if (packedRenderSize.load() != packedSize) {
+        packedRenderSize.store(packedSize);
+        pendingRenderSize.store(packedSize);
         openGLContext.triggerRepaint();
     }
 }
@@ -1082,6 +1124,8 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
 
     lineShader->setUniform("uFadeAmount", fadeAmount);
     lineShader->setUniform("uNEdges", (GLfloat)nEdges);
+    const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
+    lineShader->setUniform("uWorldToClipScale", worldToClipScale.x, worldToClipScale.y);
     setOffsetAndScale(lineShader.get());
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
@@ -1164,16 +1208,16 @@ void VisualiserRenderer::drawCRT() {
     drawTexture({lineTexture});
     checkGLErrors(__FILE__, __LINE__);
 
-    // horizontal blur 512x512
+    // horizontal tight blur
     activateTargetTexture(blur2Texture);
     setShader(blurShader.get());
-    blurShader->setUniform("uOffset", 1.0f / 512.0f, 0.0f);
+    blurShader->setUniform("uOffset", 1.0f / (float)blur1Texture.width, 0.0f);
     drawTexture({blur1Texture});
     checkGLErrors(__FILE__, __LINE__);
 
-    // vertical blur 512x512
+    // vertical tight blur
     activateTargetTexture(blur1Texture);
-    blurShader->setUniform("uOffset", 0.0f, 1.0f / 512.0f);
+    blurShader->setUniform("uOffset", 0.0f, 1.0f / (float)blur2Texture.height);
     drawTexture({blur2Texture});
     checkGLErrors(__FILE__, __LINE__);
 
@@ -1184,21 +1228,21 @@ void VisualiserRenderer::drawCRT() {
     drawTexture({blur1Texture});
     checkGLErrors(__FILE__, __LINE__);
 
-    // horizontal blur 128x128
+    // horizontal wide blur
     activateTargetTexture(blur4Texture);
     setShader(wideBlurShader.get());
-    wideBlurShader->setUniform("uOffset", 1.0f / 128.0f, 0.0f);
+    wideBlurShader->setUniform("uOffset", 1.0f / (float)blur3Texture.width, 0.0f);
     drawTexture({blur3Texture});
     checkGLErrors(__FILE__, __LINE__);
 
-    // vertical blur 128x128
+    // vertical wide blur
     activateTargetTexture(blur3Texture);
-    wideBlurShader->setUniform("uOffset", 0.0f, 1.0f / 128.0f);
+    wideBlurShader->setUniform("uOffset", 0.0f, 1.0f / (float)blur4Texture.height);
     drawTexture({blur4Texture});
     checkGLErrors(__FILE__, __LINE__);
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    if (parameters.screenOverlay->isRealisticDisplay()) {
+    if (ScreenOverlayParameter::isRealisticDisplay(screenOverlay)) {
         // create glow texture
         activateTargetTexture(glowTexture);
         setShader(glowShader.get());
@@ -1233,7 +1277,7 @@ void VisualiserRenderer::drawCRT() {
     setOffsetAndScale(outputShader.get());
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     outputShader->setUniform("uFishEye", screenOverlay == ScreenOverlay::VectorDisplay ? VECTOR_DISPLAY_FISH_EYE : 0.0f);
-    outputShader->setUniform("uRealScreen", parameters.screenOverlay->isRealisticDisplay() ? 1.0f : 0.0f);
+    outputShader->setUniform("uRealScreen", ScreenOverlayParameter::isRealisticDisplay(screenOverlay) ? 1.0f : 0.0f);
 #else
     outputShader->setUniform("uFishEye", 0.0f);
     outputShader->setUniform("uRealScreen", 0.0f);
@@ -1253,14 +1297,21 @@ void VisualiserRenderer::drawCRT() {
     checkGLErrors(__FILE__, __LINE__);
 }
 
+ScreenOverlay VisualiserRenderer::getEffectiveScreenOverlay() {
+    return getScreenOverlayForRenderSize(
+        parameters.getScreenOverlay(),
+        VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
+}
+
 void VisualiserRenderer::setOffsetAndScale(juce::OpenGLShaderProgram *shader) {
     osci::Point offset;
     osci::Point scale = {1.0f};
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    if (parameters.getScreenOverlay() == ScreenOverlay::Real) {
+    const auto effectiveOverlay = getEffectiveScreenOverlay();
+    if (effectiveOverlay == ScreenOverlay::Real) {
         offset = REAL_SCREEN_OFFSET;
         scale = REAL_SCREEN_SCALE;
-    } else if (parameters.getScreenOverlay() == ScreenOverlay::VectorDisplay) {
+    } else if (effectiveOverlay == ScreenOverlay::VectorDisplay) {
         offset = VECTOR_DISPLAY_OFFSET;
         scale = VECTOR_DISPLAY_SCALE;
     }
@@ -1273,23 +1324,30 @@ void VisualiserRenderer::setOffsetAndScale(juce::OpenGLShaderProgram *shader) {
 Texture VisualiserRenderer::createReflectionTexture() {
     using namespace juce::gl;
 
-    if (parameters.getScreenOverlay() == ScreenOverlay::VectorDisplay) {
+    const auto size = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
+    juce::Image canvas(juce::Image::ARGB, size.width, size.height, true);
+    juce::Graphics g(canvas);
+    g.fillAll(visualiserScreenBaseColour());
+
+    const auto effectiveOverlay = getEffectiveScreenOverlay();
+    if (effectiveOverlay == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayReflectionImage.isNull()) {
             vectorDisplayReflectionImage = loadAssetOrFallback(assets.vectorDisplayReflection, createFallbackReflectionTextureImage());
         }
-        reflectionOpenGLTexture.loadImage(vectorDisplayReflectionImage);
-    } else if (parameters.getScreenOverlay() == ScreenOverlay::Real) {
+        drawImageAspectFit(g, vectorDisplayReflectionImage, canvas.getBounds());
+    } else if (effectiveOverlay == ScreenOverlay::Real) {
         if (oscilloscopeReflectionImage.isNull()) {
             oscilloscopeReflectionImage = loadAssetOrFallback(assets.realReflection, createFallbackReflectionTextureImage());
         }
-        reflectionOpenGLTexture.loadImage(oscilloscopeReflectionImage);
+        drawImageAspectFit(g, oscilloscopeReflectionImage, canvas.getBounds());
     } else {
         if (emptyReflectionImage.isNull()) {
             emptyReflectionImage = loadAssetOrFallback(assets.emptyReflection, createFallbackReflectionTextureImage());
         }
-        reflectionOpenGLTexture.loadImage(emptyReflectionImage);
+        drawImageCropToFill(g, emptyReflectionImage, canvas.getBounds());
     }
 
+    reflectionOpenGLTexture.loadImage(canvas);
     Texture texture = {reflectionOpenGLTexture.getTextureID(), reflectionOpenGLTexture.getWidth(), reflectionOpenGLTexture.getHeight()};
 
     return texture;
@@ -1299,37 +1357,44 @@ Texture VisualiserRenderer::createReflectionTexture() {
 Texture VisualiserRenderer::createScreenTexture() {
     using namespace juce::gl;
 
+    const auto size = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
+    juce::Image canvas(juce::Image::ARGB, size.width, size.height, true);
+    juce::Graphics g(canvas);
+    g.fillAll(visualiserScreenBaseColour());
+
     if (screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule) {
         if (screenTextureImage.isNull()) {
             screenTextureImage = loadAssetOrFallback(
                 assets.noiseScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff020705), juce::Colour(0xff86ffac), true));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor().brighter(0.25f), true));
         }
-        screenOpenGLTexture.loadImage(screenTextureImage);
+        drawImageCropToFill(g, screenTextureImage, canvas.getBounds());
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     } else if (screenOverlay == ScreenOverlay::Real) {
         if (oscilloscopeImage.isNull()) {
             oscilloscopeImage = loadAssetOrFallback(
                 assets.realScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff050806), juce::Colour(0xff78ffc4), false));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portInput().brighter(0.25f), false));
         }
-        screenOpenGLTexture.loadImage(oscilloscopeImage);
+        drawImageAspectFit(g, oscilloscopeImage, canvas.getBounds());
     } else if (screenOverlay == ScreenOverlay::VectorDisplay) {
         if (vectorDisplayImage.isNull()) {
             vectorDisplayImage = loadAssetOrFallback(
                 assets.vectorDisplayScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff020607), juce::Colour(0xff61e8ff), false));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portOutput().brighter(0.25f), false));
         }
-        screenOpenGLTexture.loadImage(vectorDisplayImage);
+        drawImageAspectFit(g, vectorDisplayImage, canvas.getBounds());
 #endif
     } else {
         if (emptyScreenImage.isNull()) {
             emptyScreenImage = loadAssetOrFallback(
                 assets.emptyScreen,
-                createFallbackScreenTextureImage(juce::Colour(0xff000302), juce::Colour(0xff2ce88a), false));
+                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor(), false));
         }
-        screenOpenGLTexture.loadImage(emptyScreenImage);
+        drawImageCropToFill(g, emptyScreenImage, canvas.getBounds());
     }
+
+    screenOpenGLTexture.loadImage(canvas);
     checkGLErrors(__FILE__, __LINE__);
     Texture texture = {screenOpenGLTexture.getTextureID(), screenOpenGLTexture.getWidth(), screenOpenGLTexture.getHeight()};
 
@@ -1342,44 +1407,8 @@ Texture VisualiserRenderer::createScreenTexture() {
         checkGLErrors(__FILE__, __LINE__);
         glColorMask(true, false, false, true);
 
-        std::vector<float> data;
-
-        int step = 45;
-
-        for (int i = 0; i < 11; i++) {
-            float s = i * step;
-
-            // Inserting at the beginning of the vector (equivalent to splice(0,0,...))
-            data.insert(data.begin(), {0, s, 10.0f * step, s});
-            data.insert(data.begin(), {s, 0, s, 10.0f * step});
-
-            if (i != 0 && i != 10) {
-                for (int j = 0; j < 51; j++) {
-                    float t = j * step / 5;
-                    if (i != 5) {
-                        data.insert(data.begin(), {t, s - 2, t, s + 1});
-                        data.insert(data.begin(), {s - 2, t, s + 1, t});
-                    } else {
-                        data.insert(data.begin(), {t, s - 5, t, s + 4});
-                        data.insert(data.begin(), {s - 5, t, s + 4, t});
-                    }
-                }
-            }
-        }
-
-        for (int j = 0; j < 51; j++) {
-            float t = j * step / 5;
-            if (static_cast<int>(t) % 5 == 0)
-                continue;
-
-            data.insert(data.begin(), {t - 2, 2.5f * step, t + 2, 2.5f * step});
-            data.insert(data.begin(), {t - 2, 7.5f * step, t + 2, 7.5f * step});
-        }
-
-        // Normalize the data
-        for (size_t i = 0; i < data.size(); i++) {
-            data[i] = (data[i] + 31.0f) / 256.0f - 1;
-        }
+        const auto graticule = VisualiserGeometry::getGraticuleLayout(size);
+        const auto data = VisualiserGeometry::getGraticuleLineVertices(size);
 
         glEnableVertexAttribArray(glGetAttribLocation(simpleShader->getProgramID(), "vertexPosition"));
         glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
@@ -1387,7 +1416,7 @@ Texture VisualiserRenderer::createScreenTexture() {
         glVertexAttribPointer(glGetAttribLocation(simpleShader->getProgramID(), "vertexPosition"), 2, GL_FLOAT, GL_FALSE, 0, nullptr);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         simpleShader->setUniform("colour", 0.01f, 0.05f, 0.01f, 1.0f);
-        glLineWidth(4.0f);
+        glLineWidth(graticule.lineWidthPixels);
         glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(data.size() / 2));
 
         // Also write a clean graticule mask into alpha so the compositor can
@@ -1418,10 +1447,11 @@ Texture VisualiserRenderer::createScreenTexture() {
             glClearColor(prevClearColour[0], prevClearColour[1], prevClearColour[2], prevClearColour[3]);
             glColorMask(prevColourMask[0], prevColourMask[1], prevColourMask[2], prevColourMask[3]);
             glBlendFunc(prevBlendSrc, prevBlendDst);
-            if (prevBlendEnabled)
+            if (prevBlendEnabled) {
                 glEnable(GL_BLEND);
-            else
+            } else {
                 glDisable(GL_BLEND);
+            }
         }
 
         glBindTexture(GL_TEXTURE_2D, targetTexture.value().id);
@@ -1469,8 +1499,9 @@ void VisualiserRenderer::checkGLErrors(juce::String file, int line) {
 
 void VisualiserRenderer::renderScope(const std::vector<float> &xPoints, const std::vector<float> &yPoints,
                                      const std::vector<float> &rPoints, const std::vector<float> &gPoints, const std::vector<float> &bPoints) {
-    if (screenOverlay != parameters.getScreenOverlay()) {
-        screenOverlay = parameters.getScreenOverlay();
+    const auto effectiveOverlay = getEffectiveScreenOverlay();
+    if (screenOverlay != effectiveOverlay) {
+        screenOverlay = effectiveOverlay;
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         reflectionTexture = createReflectionTexture();
 #endif

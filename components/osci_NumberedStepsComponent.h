@@ -51,7 +51,7 @@ public:
 
             g.setColour (textColour);
             g.setFont (textFont);
-            g.drawFittedText (steps[index], row, juce::Justification::centredLeft, 1, 0.82f);
+            osci::LookAndFeelHelpers::drawFittedText (g, steps[index], row, juce::Justification::centredLeft, 1, 0.82f);
 
             area.removeFromTop (rowGap);
         }
@@ -65,11 +65,11 @@ private:
         g.setColour (accentColour.withAlpha (0.82f));
         g.drawEllipse (badgeBounds, 1.0f);
         g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-        g.drawText (juce::String (number), area, juce::Justification::centred);
+        g.drawText (juce::String (number), area.toFloat(), juce::Justification::centred);
     }
 
     juce::StringArray steps;
-    juce::Colour textColour { juce::Colours::white.withAlpha (0.78f) };
+    juce::Colour textColour { Colours::textMuted() };
     juce::Colour accentColour { Colours::accentColor() };
     juce::Font textFont { juce::FontOptions (13.0f) };
     int rowHeight = 26;

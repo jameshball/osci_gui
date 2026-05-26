@@ -47,8 +47,8 @@ public:
         g.fillRoundedRectangle(bounds, osci::Colours::kPillRadius);
 
         // Text
-        auto textColour = on ? juce::Colours::white
-                             : juce::Colours::white.withAlpha(0.35f);
+        auto textColour = on ? osci::Colours::text()
+                             : osci::Colours::textSubtle();
         g.setColour(textColour);
         g.setFont(juce::Font(10.0f));
         g.drawText(parameter->name.toUpperCase(), bounds, juce::Justification::centred, false);

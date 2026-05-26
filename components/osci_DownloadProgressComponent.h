@@ -15,7 +15,7 @@ public:
         progressBar.setPercentageDisplay(true);
         addChildComponent(progressBar);
         statusLabel.setJustificationType(juce::Justification::centred);
-        statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+        statusLabel.setColour(juce::Label::textColourId, osci::Colours::text());
         addChildComponent(statusLabel);
     }
 

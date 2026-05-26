@@ -39,7 +39,7 @@ inline void paintBackground(juce::Graphics& g,
         g.setColour(osci::Colours::darkerer());
         g.fillPath(labelPath);
 
-        g.setColour(juce::Colours::white);
+        g.setColour(osci::Colours::text());
         g.setFont(juce::Font(10.0f));
         g.drawText(labelText, labelBounds, juce::Justification::centred);
     } else {

@@ -13,7 +13,7 @@ public:
     }
 
     SvgSwitchButton(juce::String name, juce::String svg, osci::BooleanParameter* parameterToUse)
-        : SvgSwitchButton(std::move(name), std::move(svg), juce::Colours::white, parameterToUse) {}
+        : SvgSwitchButton(std::move(name), std::move(svg), osci::Colours::text(), parameterToUse) {}
 
     void resized() override {
         constexpr int groupWidth = 30;

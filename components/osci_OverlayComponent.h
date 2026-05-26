@@ -21,7 +21,7 @@ public:
           panelLayer (*this),
           panelAnimationLayer ("overlayPanelAnimation", juce::Graphics::mediumResamplingQuality),
           transitionController (this),
-          closeOverlayButton ("closeOverlay", std::move (closeButtonSvg), juce::Colours::white, juce::Colours::white) {
+          closeOverlayButton ("closeOverlay", std::move (closeButtonSvg), Colours::textMuted(), Colours::text()) {
         setOpaque (false);
         setAlwaysOnTop (true);
         setInterceptsMouseClicks (true, true);
@@ -45,7 +45,7 @@ public:
         contentViewport.setViewedComponent (&contentLayer, false);
         contentViewport.setScrollBarsShown (true, false);
         contentViewport.setColour (juce::ScrollBar::thumbColourId, Colours::grey());
-        contentViewport.setColour (juce::ScrollBar::trackColourId, juce::Colours::transparentBlack);
+        contentViewport.setColour (juce::ScrollBar::trackColourId, Colours::transparent());
         panelLayer.addAndMakeVisible (contentViewport);
 
         configureLabel (overlayTitleLabel,
@@ -58,6 +58,7 @@ public:
             dismiss();
         };
         panelLayer.addAndMakeVisible (closeOverlayButton);
+        refreshThemeColours();
     }
 
     ~OverlayComponent() override {
@@ -280,7 +281,7 @@ protected:
     static void configureLabel (juce::Label& label,
                                 const juce::Font& font,
                                 juce::Justification justification) {
-        label.setColour (juce::Label::textColourId, juce::Colours::white);
+        label.setColour (juce::Label::textColourId, Colours::text());
         label.setFont (font);
         label.setJustificationType (justification);
         label.setEditable (false, false, false);
@@ -550,7 +551,7 @@ private:
         g.setColour (Colours::veryDark().brighter (0.015f));
         g.fillRoundedRectangle (panelFloat, cornerRadius);
 
-        g.setColour (juce::Colours::white.withAlpha (0.24f));
+        g.setColour (Colours::neutralStroke (0.24f));
         g.drawRoundedRectangle (panelFloat.reduced (0.5f), cornerRadius, 1.0f);
     }
 
@@ -589,6 +590,11 @@ private:
         constexpr auto cornerRadius = 12.0f;
         juce::Path panelPath;
         panelPath.addRoundedRectangle (panelLocalBounds.toFloat(), cornerRadius);
+        melatonin::DropShadow panelShadow {
+            { Colours::shadow().withAlpha (0.72f), 22, { 0, 1 }, -1 },
+            { Colours::shadow().withAlpha (0.62f), 10, { 0, 0 }, 0 },
+            { Colours::shadow().withAlpha (0.48f), 4, { 0, 0 }, 0 }
+        };
         panelShadow.render (imageGraphics, panelPath);
     }
 
@@ -655,6 +661,19 @@ private:
         panelShadowImageBounds = {};
         panelShadowPanelBounds = {};
         panelShadowImageScale = 0.0f;
+    }
+
+    void refreshThemeColours() {
+        contentViewport.setColour (juce::ScrollBar::thumbColourId, Colours::grey());
+        contentViewport.setColour (juce::ScrollBar::trackColourId, Colours::transparent());
+        overlayTitleLabel.setColour (juce::Label::textColourId, Colours::text());
+        closeOverlayButton.setColours (Colours::textMuted(), Colours::text());
+        resetPanelShadowCache();
+        repaint();
+    }
+
+    void lookAndFeelChanged() override {
+        refreshThemeColours();
     }
 
     void updateBackdropAlpha() {
@@ -835,11 +854,6 @@ private:
     ToggleAnimationController transitionController;
     juce::Image backdropSnapshot;
     melatonin::CachedBlur backdropBlur { backdropBlurRadius };
-    melatonin::DropShadow panelShadow {
-        { juce::Colours::black.withAlpha (0.72f), 22, { 0, 1 }, -1 },
-        { juce::Colours::black.withAlpha (0.62f), 10, { 0, 0 }, 0 },
-        { juce::Colours::black.withAlpha (0.48f), 4, { 0, 0 }, 0 }
-    };
     juce::Rectangle<int> panelLayerBounds;
     juce::Image panelShadowImage;
     juce::Rectangle<int> panelShadowImageBounds;

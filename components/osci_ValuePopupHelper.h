@@ -7,8 +7,8 @@
 class ValuePopupHelper {
 public:
     void show(juce::Component& anchor, const juce::String& text,
-              juce::Colour bg = juce::Colour(0xff111111),
-              juce::Colour fg = juce::Colours::white) {
+              juce::Colour bg = osci::Colours::surfaceRaised(),
+              juce::Colour fg = osci::Colours::text()) {
         if (!popup) {
             popup = std::make_unique<juce::Label>();
             popup->setFont(juce::Font(11.0f, juce::Font::bold));

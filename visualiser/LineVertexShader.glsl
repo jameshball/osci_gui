@@ -9,6 +9,7 @@ uniform float uFadeAmount;
 uniform float uIntensity;
 uniform bool uShutterSync;
 uniform float uGain;
+uniform vec2 uWorldToClipScale;
 attribute vec3 aStart, aEnd;
 attribute vec3 aStartColor, aEndColor;
 attribute float aIdx;
@@ -26,15 +27,17 @@ void main () {
     // We determine point position using its index.
     float idx = mod(aIdx,4.0);
     
-    vec2 aStartPos = aStart.xy;
-    vec2 aEndPos = aEnd.xy;
+    vec2 canvasToClipScale = uWorldToClipScale;
+    vec2 aStartPos = aStart.xy * uGain * canvasToClipScale;
+    vec2 aEndPos = aEnd.xy * uGain * canvasToClipScale;
     float aStartBrightness = clamp(aStart.z, 0.0, 1.0);
     float aEndBrightness = clamp(aEnd.z, 0.0, 1.0);
-    
-    // `dir` vector is storing the normalized difference
-    // between end and start
-    vec2 dir = (aEndPos-aStartPos)*uGain;
-    uvl.z = length(dir);
+
+    // Work out line direction in square canvas space so beam thickness is not
+    // directionally distorted after the aspect-aware clip-space transform.
+    vec2 canvasDelta = (aEndPos-aStartPos) / canvasToClipScale;
+    vec2 dir = canvasDelta;
+    uvl.z = length(canvasDelta);
     
     if (uvl.z > EPS) {
         dir = dir / uvl.z;
@@ -48,13 +51,13 @@ void main () {
     vec2 norm = vec2(-dir.y, dir.x);
     
     if (idx >= 2.0) {
-        current = aEndPos*uGain;
+        current = aEndPos;
         tang = 1.0;
         uvl.x = -vSize;
         uvl.w = aEndBrightness;
         vColor = aEndColor;
     } else {
-        current = aStartPos*uGain;
+        current = aStartPos;
         tang = -1.0;
         uvl.x = uvl.z + vSize;
         uvl.w = aStartBrightness;
@@ -74,7 +77,8 @@ void main () {
     
     uvl.w *= intensity * intensityFade;
                              
-    vec4 pos = vec4((current+(tang*dir+norm*side)*vSize)*uInvert,0.0,1.0);
+    vec2 clipOffset = (tang*dir+norm*side)*vSize*canvasToClipScale;
+    vec4 pos = vec4((current+clipOffset)*uInvert,0.0,1.0);
     gl_Position = pos;
     vTexCoord = 0.5 * pos.xy + 0.5;
 }

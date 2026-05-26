@@ -6,6 +6,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../osci_TextEditor.h"
+#include "../../lookandfeel/osci_LookAndFeel.h"
 
 // Factory for creating consistently styled inline text editors used across
 // the LFO subsystem (DepthIndicator, LfoRateComponent, TempoComponent).
@@ -22,9 +23,9 @@ inline std::unique_ptr<juce::TextEditor> create(
         const juce::String& initialText,
         juce::Rectangle<int> bounds,
         const Callbacks& callbacks,
-        juce::Colour backgroundColour = juce::Colour(0xFF1A1A1A),
-        juce::Colour textColour = juce::Colours::white,
-        juce::Colour outlineColour = juce::Colours::white.withAlpha(0.3f),
+        juce::Colour backgroundColour = osci::Colours::surfaceSunken(),
+        juce::Colour textColour = osci::Colours::text(),
+        juce::Colour outlineColour = osci::Colours::outlineSubtle(),
         float fontSize = 12.0f) {
     auto editor = std::make_unique<osci::TextEditor>();
     editor->setJustification(juce::Justification::centred);

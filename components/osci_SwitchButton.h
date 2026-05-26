@@ -111,7 +111,7 @@ public:
     {
         auto b = getSwitchBounds();
         auto cornerSize = (isVertical ? b.getWidth() : b.getHeight()) * 0.5;
-        g.setColour (juce::Colours::black.withAlpha (0.1f));
+        g.setColour (osci::Colours::neutralStroke (0.1f));
         g.drawRoundedRectangle (b, cornerSize, 2.0f);
         if (ccHelper.isLearning())
             g.setColour(osci::Colours::midiLearnBackground());

@@ -122,9 +122,9 @@ private:
             triangle.lineTo(bounds.getX(), bounds.getBottom());
             triangle.closeSubPath();
 
-            g.setColour(juce::Colour::fromRGB(0xd8, 0x6b, 0x4f).withAlpha(0.95f));
+            g.setColour(Colours::warning().withAlpha(0.95f));
             g.fillPath(triangle);
-            g.setColour(juce::Colours::white.withAlpha(0.92f));
+            g.setColour(Colours::textOnAccent().withAlpha(0.92f));
             g.strokePath(triangle, juce::PathStrokeType(2.0f));
 
             const auto bar = bounds.withSizeKeepingCentre(bounds.getWidth() * 0.12f, bounds.getHeight() * 0.34f)
@@ -139,9 +139,9 @@ private:
         }
 
         static void paintError(juce::Graphics& g, juce::Rectangle<float> bounds) {
-            g.setColour(juce::Colour::fromRGB(0xd8, 0x5a, 0x5a).withAlpha(0.95f));
+            g.setColour(Colours::danger().withAlpha(0.95f));
             g.fillEllipse(bounds);
-            g.setColour(juce::Colours::white.withAlpha(0.92f));
+            g.setColour(Colours::textOnAccent().withAlpha(0.92f));
             g.drawEllipse(bounds.reduced(1.0f), 2.0f);
 
             const auto stroke = juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
@@ -172,9 +172,9 @@ private:
         }
 
         void paint(juce::Graphics& g) override {
-            g.setColour(juce::Colours::white.withAlpha(0.86f));
+            g.setColour(Colours::textMuted());
             g.setFont(juce::Font(juce::FontOptions(17.0f, juce::Font::plain)));
-            g.drawFittedText(text, getLocalBounds(), justification, 12);
+            osci::LookAndFeelHelpers::drawFittedText (g, text, getLocalBounds().toFloat(), justification, 12);
         }
 
     private:
@@ -220,6 +220,16 @@ private:
         }
     }
 
+    void lookAndFeelChanged() override {
+        for (auto buttonIndex = 0; buttonIndex < static_cast<int>(buttons.size()); ++buttonIndex) {
+            styleButton(*buttons[static_cast<size_t>(buttonIndex)],
+                        options.buttons[static_cast<size_t>(buttonIndex)].primary);
+        }
+
+        iconComponent.repaint();
+        messageLabel.repaint();
+    }
+
     void triggerButton(int buttonIndex) {
         if (!juce::isPositiveAndBelow(buttonIndex, static_cast<int>(options.buttons.size()))) {
             return;
@@ -245,15 +255,15 @@ private:
     }
 
     static void styleButton(juce::TextButton& button, bool primary) {
-        const auto accent = primary ? Colours::accentColor() : juce::Colours::white;
+        const auto accent = primary ? Colours::accentColor() : Colours::text();
         button.setColour(juce::TextButton::buttonColourId,
-                         primary ? accent.withAlpha(0.92f) : juce::Colours::white.withAlpha(0.08f));
+                         primary ? accent.withAlpha(0.92f) : Colours::neutralFill(0.08f));
         button.setColour(juce::TextButton::buttonOnColourId,
-                         primary ? accent.brighter(0.12f) : juce::Colours::white.withAlpha(0.14f));
+                         primary ? accent.brighter(0.12f) : Colours::neutralFill(0.14f));
         button.setColour(juce::TextButton::textColourOffId,
-                         primary ? juce::Colours::black.withAlpha(0.88f) : juce::Colours::white);
+                         primary ? Colours::textOnAccent() : Colours::text());
         button.setColour(juce::TextButton::textColourOnId,
-                         primary ? juce::Colours::black.withAlpha(0.88f) : juce::Colours::white);
+                         primary ? Colours::textOnAccent() : Colours::text());
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ErrorOverlay)

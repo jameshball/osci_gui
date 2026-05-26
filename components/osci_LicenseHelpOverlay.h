@@ -11,7 +11,6 @@ public:
         configureLabel (messageLabel, juce::Font (juce::FontOptions (14.2f)), juce::Justification::centredLeft);
         messageLabel.setText ("Your key is on the download page linked from your purchase email.",
                               juce::dontSendNotification);
-        messageLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.78f));
         messageLabel.setMinimumHorizontalScale (0.82f);
         addPanelContentAndMakeVisible (messageLabel);
 
@@ -20,25 +19,23 @@ public:
         licenseSteps.add ("Copy the license key shown near the top of the page.");
         licenseSteps.add ("Paste it into the installer and activate.");
         stepsComponent.setSteps (licenseSteps);
-        stepsComponent.setTextColour (juce::Colours::white.withAlpha (0.78f));
-        stepsComponent.setAccentColour (Colours::accentColor());
         stepsComponent.setFont (juce::Font (juce::FontOptions (14.2f)));
         stepsComponent.setMetrics (28, 13, 21);
         addPanelContentAndMakeVisible (stepsComponent);
 
         configureLabel (supportLabel, juce::Font (juce::FontOptions (13.0f)), juce::Justification::centred);
         supportLabel.setText ("Still stuck?", juce::dontSendNotification);
-        supportLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.58f));
         addPanelContentAndMakeVisible (supportLabel);
 
         setupButton (discordButton,
                      "Join Discord",
                      juce::URL ("https://discord.gg/ekjpQvT68C"),
-                     juce::Colour::fromRGB (0x58, 0x65, 0xF2).brighter (0.4f));
+                     Colours::categoryScripting());
         setupButton (emailButton,
                      "Email james@ball.sh",
                      juce::URL ("mailto:james@ball.sh"),
                      Colours::accentColor());
+        refreshThemeColours();
     }
 
 private:
@@ -68,19 +65,37 @@ private:
         emailButton.setBounds (buttonRow.removeFromLeft (148));
     }
 
+    void lookAndFeelChanged() override {
+        refreshThemeColours();
+    }
+
     void setupButton (juce::TextButton& button,
                       const juce::String& text,
                       juce::URL url,
                       juce::Colour colour) {
         button.setButtonText (text);
-        button.setColour (juce::TextButton::buttonColourId, colour.withAlpha (0.11f));
-        button.setColour (juce::TextButton::buttonOnColourId, colour.withAlpha (0.18f));
-        button.setColour (juce::TextButton::textColourOffId, colour);
-        button.setColour (juce::TextButton::textColourOnId, colour);
+        styleButton (button, colour);
         button.onClick = [url] {
             url.launchInDefaultBrowser();
         };
         addPanelContentAndMakeVisible (button);
+    }
+
+    void refreshThemeColours() {
+        messageLabel.setColour (juce::Label::textColourId, Colours::textMuted());
+        stepsComponent.setTextColour (Colours::textMuted());
+        stepsComponent.setAccentColour (Colours::accentColor());
+        supportLabel.setColour (juce::Label::textColourId, Colours::textSubtle());
+        styleButton (discordButton, Colours::categoryScripting());
+        styleButton (emailButton, Colours::accentColor());
+        repaint();
+    }
+
+    static void styleButton (juce::TextButton& button, juce::Colour colour) {
+        button.setColour (juce::TextButton::buttonColourId, colour.withAlpha (0.11f));
+        button.setColour (juce::TextButton::buttonOnColourId, colour.withAlpha (0.18f));
+        button.setColour (juce::TextButton::textColourOffId, colour);
+        button.setColour (juce::TextButton::textColourOnId, colour);
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LicenseHelpOverlay)
