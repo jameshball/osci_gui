@@ -214,6 +214,7 @@ public:
     osci::BooleanParameter* sweepEnabled = new osci::BooleanParameter("Sweep", "sweepEnabled", VERSION_HINT, false, "Plots the audio signal over time, sweeping from left to right");
     osci::BooleanParameter* visualiserFullScreen = new osci::BooleanParameter("Visualiser Fullscreen", "visualiserFullScreen", VERSION_HINT, false, "Makes the software visualiser fullscreen.");
     osci::BooleanParameter* visualiserPaused = new osci::BooleanParameter("Visualiser Paused", "visualiserPaused", VERSION_HINT, false, "Pauses the visualiser rendering.");
+    osci::BooleanParameter* textureOutputEnabled = new osci::BooleanParameter("Texture Output", "textureOutputEnabled", VERSION_HINT, false, "Publishes the visualiser output as a Syphon or Spout texture.");
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     osci::BooleanParameter* flipVertical = new osci::BooleanParameter("Flip Vertical", "flipVertical", VERSION_HINT, false, "Flips the visualiser vertically.");
@@ -413,6 +414,7 @@ public:
         goniometer,
         shutterSync,
 #endif
+        textureOutputEnabled,
     };
     std::vector<osci::IntParameter*> integers = {
         screenOverlay,
