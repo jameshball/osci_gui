@@ -20,7 +20,8 @@ namespace Svg {
         }
 
         applyFill(doc.get(), colour);
-        return juce::Drawable::createFromSVGString (doc->toString());
+        svg = doc->toString();
+        return juce::Drawable::createFromImageData (svg.toRawUTF8(), svg.getNumBytesAsUTF8());
     }
 }
 
@@ -189,13 +190,7 @@ private:
     static juce::Colour disabledColour (juce::Colour colour) { return colour.withMultipliedAlpha (0.36f); }
 
     std::unique_ptr<juce::Drawable> createImage (const juce::String& source, juce::Colour colour) {
-        auto doc = juce::XmlDocument::parse (source);
-        if (doc == nullptr) {
-            return nullptr;
-        }
-
-        Svg::applyFill (doc.get(), colour);
-        return juce::Drawable::createFromSVGString (doc->toString());
+        return Svg::createDrawable (source, colour);
     }
 
     void rebuildImages (juce::Colour colour, juce::Colour colourOn) {
