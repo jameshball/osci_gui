@@ -56,6 +56,7 @@
 #include "components/osci_OverlayListBox.h"
 #include "components/osci_TextEditor.h"
 #include "components/osci_SvgButton.h"
+#include "components/osci_UndoRedoComponent.h"
 #include "components/osci_SwitchButton.h"
 #include "components/osci_SvgSwitchButton.h"
 #include "components/osci_DebouncedCallback.h"

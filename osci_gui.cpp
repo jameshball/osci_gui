@@ -11,6 +11,7 @@
 
 #include "lookandfeel/osci_LookAndFeel.cpp"
 #include "lookandfeel/osci_OverlayLookAndFeel.cpp"
+#include "components/osci_UndoRedoComponent.cpp"
 #include "components/osci_ToggleAnimationController.cpp"
 #include "components/osci_HoverAnimationMixin.cpp"
 #include "components/osci_GridItemComponent.cpp"
