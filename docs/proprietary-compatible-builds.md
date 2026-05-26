@@ -32,7 +32,7 @@ The base `osci_gui` module should avoid compiling optional feature code by defau
 
 - Set `OSCI_GUI_ENABLE_VISUALISER=1` to compile the visualiser renderer.
 - Projects enabling the visualiser must include its optional module dependencies, currently `osci_render_core` and JUCE OpenGL support.
-- Set `OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING=1` to enable ChowDSP-backed upsampling for visualiser code.
+- Set `OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING=1` to enable ChowDSP-backed upsampling for visualiser code. The ChowDSP source is a nested `third_party/chowdsp_utils` submodule.
 - Set `OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES` to include advanced visualiser overlays and controls.
 - Set `OSCI_RENDER_CORE_ENABLE_MIDI_CC_LEARN` to enable MIDI CC learn processing and shared parameter context-menu actions.
 
