@@ -20,7 +20,7 @@ namespace Svg {
         }
 
         applyFill(doc.get(), colour);
-        return juce::Drawable::createFromSVG(*doc);
+        return juce::Drawable::createFromSVGString (doc->toString());
     }
 }
 
@@ -195,7 +195,7 @@ private:
         }
 
         Svg::applyFill (doc.get(), colour);
-        return juce::Drawable::createFromSVG (*doc);
+        return juce::Drawable::createFromSVGString (doc->toString());
     }
 
     void rebuildImages (juce::Colour colour, juce::Colour colourOn) {
@@ -224,7 +224,7 @@ private:
     void applyImageTransform() {
         auto apply = [this](std::unique_ptr<juce::Drawable>& d) {
             if (d != nullptr) {
-                d->setTransform(imageTransform);
+                d->setDrawableTransform(imageTransform);
             }
         };
         apply(normalImage);
