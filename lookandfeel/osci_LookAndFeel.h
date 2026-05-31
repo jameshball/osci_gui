@@ -181,18 +181,20 @@ namespace LookAndFeelHelpers {
             return;
         }
 
-        juce::GlyphArrangement glyphs;
-        glyphs.addFittedText (g.getCurrentFont(),
-                              text,
-                              area.getX(),
-                              area.getY(),
-                              area.getWidth(),
-                              area.getHeight(),
-                              justification,
-                              maximumNumberOfLines,
-                              minimumHorizontalScale,
-                              options);
-        glyphs.draw (g);
+        const auto localArea = area.withPosition (0.0f, 0.0f).getSmallestIntegerContainer();
+        if (localArea.isEmpty()) {
+            return;
+        }
+
+        g.saveState();
+        g.addTransform (juce::AffineTransform::translation (area.getX(), area.getY()));
+        g.drawFittedText (text,
+                          localArea,
+                          justification,
+                          maximumNumberOfLines,
+                          minimumHorizontalScale,
+                          options);
+        g.restoreState();
     }
 
     inline void drawFittedText (juce::Graphics& g,
@@ -202,7 +204,11 @@ namespace LookAndFeelHelpers {
                                 int maximumNumberOfLines,
                                 float minimumHorizontalScale = 0.0f,
                                 juce::GlyphArrangementOptions options = {}) {
-        drawFittedText (g, text, area.toFloat(), justification, maximumNumberOfLines, minimumHorizontalScale, options);
+        if (text.isEmpty() || area.isEmpty() || maximumNumberOfLines <= 0) {
+            return;
+        }
+
+        g.drawFittedText (text, area, justification, maximumNumberOfLines, minimumHorizontalScale, options);
     }
 
     inline void drawFittedText (juce::Graphics& g,
@@ -215,16 +221,19 @@ namespace LookAndFeelHelpers {
                                 int maximumNumberOfLines,
                                 float minimumHorizontalScale = 0.0f,
                                 juce::GlyphArrangementOptions options = {}) {
-        drawFittedText (g,
-                        text,
-                        juce::Rectangle<float> (static_cast<float> (x),
-                                                static_cast<float> (y),
-                                                static_cast<float> (width),
-                                                static_cast<float> (height)),
-                        justification,
-                        maximumNumberOfLines,
-                        minimumHorizontalScale,
-                        options);
+        if (text.isEmpty() || width <= 0 || height <= 0 || maximumNumberOfLines <= 0) {
+            return;
+        }
+
+        g.drawFittedText (text,
+                          x,
+                          y,
+                          width,
+                          height,
+                          justification,
+                          maximumNumberOfLines,
+                          minimumHorizontalScale,
+                          options);
     }
 
 
