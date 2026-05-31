@@ -35,3 +35,9 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 `components/list/osci_VListBox.*` is derived from JUCE's `ListBox` implementation, and `components/midi/osci_CustomMidiKeyboardComponent.*` is derived from JUCE's `MidiKeyboardComponent`.
 
 The original JUCE notices are retained in the source files. Proprietary products using these files need suitable JUCE commercial or other non-GPL-compatible licensing for the consuming product.
+
+## ChowDSP
+
+Optional visualiser resampling support uses ChowDSP modules through the nested `third_party/chowdsp_utils` submodule when `OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING=1`.
+
+The currently used ChowDSP modules are GPLv3. Keep `OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING=0` in proprietary-compatible builds unless that dependency is separately cleared.
