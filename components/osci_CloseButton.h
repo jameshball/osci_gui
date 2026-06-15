@@ -66,8 +66,8 @@ public:
 
 private:
     SvgButton iconButton;
-    int iconPadding = 6;
-    bool paintsBackground = true;
+    int iconPadding = 0;
+    bool paintsBackground = false;
 };
 
 } // namespace osci
