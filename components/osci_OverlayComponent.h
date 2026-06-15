@@ -21,7 +21,7 @@ public:
           panelLayer (*this),
           panelAnimationLayer ("overlayPanelAnimation", juce::Graphics::mediumResamplingQuality),
           transitionController (this),
-          closeOverlayButton ("closeOverlay", std::move (closeButtonSvg), Colours::textMuted(), Colours::text()) {
+          closeOverlayButton (std::move (closeButtonSvg), "closeOverlay", Colours::textMuted(), Colours::text()) {
         setOpaque (false);
         setAlwaysOnTop (true);
         setInterceptsMouseClicks (true, true);
@@ -860,7 +860,7 @@ private:
     juce::Rectangle<int> panelShadowPanelBounds;
     float panelShadowImageScale = 0.0f;
     juce::Label overlayTitleLabel;
-    SvgButton closeOverlayButton;
+    CloseButton closeOverlayButton;
     bool dismissible = true;
     bool reserveHeaderSpace = true;
     bool presentationStarted = false;
