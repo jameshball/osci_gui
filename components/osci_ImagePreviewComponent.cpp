@@ -29,11 +29,40 @@ ImagePreviewComponent::ImagePreviewComponent()
     setTriggeredOnMouseDown(false);
     hoverAnimation.setValueChangedCallback([this](float) { repaint(); });
     rebuildMagnifier(defaultMagnifierSvg);
+    removeButton.setVisible(false);
+    addAndMakeVisible(removeButton);
     onClick = [this] {
         if (image.isValid() && onOpenRequested != nullptr) {
             onOpenRequested();
         }
     };
+}
+
+ImagePreviewComponent::RemoveButton::RemoveButton()
+    : juce::Button("Remove image") {
+    setName("Remove image");
+    setTooltip("Remove image");
+    setMouseCursor(juce::MouseCursor::PointingHandCursor);
+}
+
+void ImagePreviewComponent::RemoveButton::paintButton(juce::Graphics& g, bool isMouseOver, bool isButtonDown) {
+    auto bounds = getLocalBounds().toFloat().reduced(0.75f);
+    const auto fillAlpha = isButtonDown ? 0.92f : (isMouseOver ? 0.82f : 0.68f);
+    g.setColour(juce::Colours::black.withAlpha(fillAlpha));
+    g.fillEllipse(bounds);
+    g.setColour(juce::Colours::white.withAlpha(isMouseOver ? 0.98f : 0.86f));
+    g.drawEllipse(bounds, isMouseOver ? 1.6f : 1.25f);
+
+    const auto cross = bounds.reduced(8.0f);
+    juce::Path path;
+    path.startNewSubPath(cross.getTopLeft());
+    path.lineTo(cross.getBottomRight());
+    path.startNewSubPath(cross.getTopRight());
+    path.lineTo(cross.getBottomLeft());
+    g.strokePath(path,
+                 juce::PathStrokeType(2.0f,
+                                      juce::PathStrokeType::JointStyle::curved,
+                                      juce::PathStrokeType::EndCapStyle::rounded));
 }
 
 void ImagePreviewComponent::setImage(juce::Image newImage) {
@@ -62,6 +91,12 @@ void ImagePreviewComponent::setMagnifierSvg(juce::String svg) {
     repaint();
 }
 
+void ImagePreviewComponent::setRemoveAction(std::function<void()> action, juce::String componentID) {
+    removeButton.onClick = std::move(action);
+    removeButton.setComponentID(std::move(componentID));
+    removeButton.setVisible(removeButton.onClick != nullptr);
+}
+
 void ImagePreviewComponent::paintButton(juce::Graphics& g, bool isMouseOver, bool isButtonDown) {
     constexpr auto radius = 12.0f;
     auto bounds = getLocalBounds().toFloat().reduced(0.5f);
@@ -86,7 +121,8 @@ void ImagePreviewComponent::paintButton(juce::Graphics& g, bool isMouseOver, boo
         g.drawFittedText("No preview", getLocalBounds().reduced(10), juce::Justification::centred, 1);
     }
 
-    const auto hover = juce::jmax(hoverAnimation.getProgress(), isMouseOver ? 1.0f : 0.0f);
+    juce::ignoreUnused(isMouseOver);
+    const auto hover = hoverAnimation.getProgress();
     if (hover > 0.001f && image.isValid()) {
         g.setColour(juce::Colours::black.withAlpha(hover * (isButtonDown ? 0.48f : 0.36f)));
         g.fillAll();
@@ -122,14 +158,18 @@ void ImagePreviewComponent::paintButton(juce::Graphics& g, bool isMouseOver, boo
     g.drawRoundedRectangle(bounds, radius, 1.0f + hover);
 }
 
+void ImagePreviewComponent::resized() {
+    removeButton.setBounds(getLocalBounds().removeFromRight(34).removeFromTop(34).reduced(3));
+}
+
 void ImagePreviewComponent::mouseEnter(const juce::MouseEvent& event) {
     juce::Button::mouseEnter(event);
-    hoverAnimation.animateTo(true, 140, juce::Easings::createEaseOut());
+    hoverAnimation.animateTo(true, 155, juce::Easings::createEaseOut());
 }
 
 void ImagePreviewComponent::mouseExit(const juce::MouseEvent& event) {
     juce::Button::mouseExit(event);
-    hoverAnimation.animateTo(false, 170, juce::Easings::createEaseOut());
+    hoverAnimation.animateTo(false, 155, juce::Easings::createEaseOut());
 }
 
 void ImagePreviewComponent::rebuildMagnifier(juce::StringRef svg) {

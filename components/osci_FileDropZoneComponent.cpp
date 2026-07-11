@@ -385,9 +385,9 @@ void FileDropZoneComponent::paint (juce::Graphics& g)
         return;
     }
 
-    auto iconArea = content.removeFromTop (76.0f);
+    auto iconArea = content.removeFromTop (64.0f);
     drawUploadGlyph (g, iconArea, accent, drag + pulse * 0.4f);
-    content.removeFromTop (3.0f);
+    content.removeFromTop (8.0f);
 
     juce::String headline = title;
     juce::String detail = subtitle;
@@ -416,6 +416,7 @@ void FileDropZoneComponent::paint (juce::Graphics& g)
                                         content.removeFromTop (24.0f),
                                         juce::Justification::centred,
                                         1);
+    content.removeFromTop (4.0f);
     g.setColour (mutedText);
     g.setFont (juce::Font (juce::FontOptions (12.5f)));
     LookAndFeelHelpers::drawFittedText (g,
@@ -449,8 +450,8 @@ void FileDropZoneComponent::resized()
     }
     else
     {
-        area.removeFromTop (129);
-        actionButton.setBounds (area.withSizeKeepingCentre (142, 30));
+        area.removeFromTop (133);
+        actionButton.setBounds (area.withSizeKeepingCentre (150, 32));
     }
 
     updateActionButton();
