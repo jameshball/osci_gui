@@ -423,10 +423,12 @@ private:
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ContentLayer)
     };
 
-    class ContentViewport final : public juce::Viewport {
+    class ContentViewport final : public ScrollFadeViewport {
     public:
-        ContentViewport()
-            : juce::Viewport ("overlayContentViewport") {}
+        ContentViewport() {
+            setName ("overlayContentViewport");
+            setFadeHeight (32);
+        }
 
         void setVerticalScrollBarTopInset (int inset) {
             const auto newInset = juce::jmax (0, inset);
@@ -441,17 +443,17 @@ private:
         }
 
         void resized() override {
-            juce::Viewport::resized();
+            ScrollFadeViewport::resized();
             adjustVerticalScrollBarBounds();
         }
 
         void visibleAreaChanged (const juce::Rectangle<int>& newVisibleArea) override {
-            juce::Viewport::visibleAreaChanged (newVisibleArea);
+            ScrollFadeViewport::visibleAreaChanged (newVisibleArea);
             adjustVerticalScrollBarBounds();
         }
 
         void componentMovedOrResized (juce::Component& component, bool wasMoved, bool wasResized) override {
-            juce::Viewport::componentMovedOrResized (component, wasMoved, wasResized);
+            ScrollFadeViewport::componentMovedOrResized (component, wasMoved, wasResized);
             adjustVerticalScrollBarBounds();
         }
 

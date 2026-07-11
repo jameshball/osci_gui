@@ -80,14 +80,14 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
     void mouseEnter(const juce::MouseEvent& e) override {
         juce::DrawableButton::mouseEnter(e);
         if (circularBackground || rotateOnHover) {
-            hoverAnimation.animateTo(true, 170, juce::Easings::createEaseOut());
+            hoverAnimation.animateTo(true, 190, juce::Easings::createEaseInOut());
         }
     }
 
     void mouseExit(const juce::MouseEvent& e) override {
         juce::DrawableButton::mouseExit(e);
         if (circularBackground || rotateOnHover) {
-            hoverAnimation.animateTo(false, 170, juce::Easings::createEaseOut());
+            hoverAnimation.animateTo(false, 190, juce::Easings::createEaseInOut());
         }
     }
 
@@ -105,7 +105,7 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
         repaint();
     }
 
-    void setRotateOnHover(bool shouldRotate, float rotationRadians = juce::MathConstants<float>::halfPi) {
+    void setRotateOnHover(bool shouldRotate, float rotationRadians = juce::MathConstants<float>::pi / 6.0f) {
         rotateOnHover = shouldRotate;
         hoverRotationRadians = rotationRadians;
         repaint();
@@ -190,7 +190,7 @@ private:
     bool prevToggleState = false;
     bool circularBackground = false;
     bool rotateOnHover = false;
-    float hoverRotationRadians = juce::MathConstants<float>::halfPi;
+    float hoverRotationRadians = juce::MathConstants<float>::pi / 6.0f;
     juce::Path basePath;
     juce::Path resizedPath;
     juce::AffineTransform imageTransform; // Transform applied to all state images
@@ -246,7 +246,8 @@ public:
 
 private:
     juce::Colour hoverColour(juce::Colour colour) const {
-        return hoverColourOverride.value_or(colour.interpolatedWith(Colours::accentColor(), 0.10f));
+        const auto neutralHover = Theme::isDark() ? colour.brighter(0.12f) : colour.darker(0.10f);
+        return hoverColourOverride.value_or(neutralHover);
     }
     static juce::Colour downColour (juce::Colour colour) { return colour.interpolatedWith (Colours::shadow(), Theme::isDark() ? 0.25f : 0.18f); }
     static juce::Colour disabledColour (juce::Colour colour) { return colour.withMultipliedAlpha (0.36f); }
