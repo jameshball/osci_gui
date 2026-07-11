@@ -87,6 +87,7 @@ public:
     }
 
     void captureBackdropFrom (juce::Component& source) {
+        backdropPrepared = true;
         if (lightweight) {
             return;
         }
@@ -99,7 +100,34 @@ public:
             return;
         }
 
-        backdropSnapshot = source.createComponentSnapshot (sourceBounds, true, backdropSnapshotScale);
+        prepareBackdropSnapshot (source.createComponentSnapshot (sourceBounds, true, backdropSnapshotScale));
+    }
+
+    void captureBackdropFrom (const juce::Image& sourceSnapshot, float sourceScale = 1.0f) {
+        backdropPrepared = true;
+        if (lightweight || !sourceSnapshot.isValid()) {
+            prepareBackdropSnapshot ({});
+            return;
+        }
+
+        const auto scale = backdropSnapshotScale / juce::jmax (0.01f, sourceScale);
+        if (juce::approximatelyEqual (scale, 1.0f)) {
+            prepareBackdropSnapshot (sourceSnapshot);
+            return;
+        }
+
+        const auto width = juce::jmax (1, juce::roundToInt (sourceSnapshot.getWidth() * scale));
+        const auto height = juce::jmax (1, juce::roundToInt (sourceSnapshot.getHeight() * scale));
+        prepareBackdropSnapshot (sourceSnapshot.rescaled (width, height, juce::Graphics::mediumResamplingQuality));
+    }
+
+    bool hasCapturedBackdrop() const {
+        return backdropPrepared;
+    }
+
+private:
+    void prepareBackdropSnapshot (juce::Image snapshot) {
+        backdropSnapshot = std::move (snapshot);
         backdropLayer.setImage (backdropSnapshot);
 
         if (!backdropSnapshot.isValid()) {
@@ -113,6 +141,7 @@ public:
         updateBackdropAlpha();
     }
 
+public:
     void setOverlayTitle (const juce::String& title) {
         overlayTitleLabel.setText (title, juce::dontSendNotification);
         overlayTitleLabel.setVisible (title.isNotEmpty());
@@ -326,7 +355,9 @@ private:
             }
         };
 
-        rawOverlay->captureBackdropFrom(parent);
+        if (!rawOverlay->hasCapturedBackdrop()) {
+            rawOverlay->captureBackdropFrom(parent);
+        }
         parent.addAndMakeVisible(*rawOverlay);
         rawOverlay->setBounds(parent.getLocalBounds());
         rawOverlay->toFront(false);
@@ -668,6 +699,7 @@ private:
     void refreshThemeColours() {
         contentViewport.setColour (juce::ScrollBar::thumbColourId, Colours::grey());
         contentViewport.setColour (juce::ScrollBar::trackColourId, Colours::transparent());
+        contentViewport.setColour (scrollFadeOverlayBackgroundColourId, Colours::veryDark().brighter (0.015f));
         overlayTitleLabel.setColour (juce::Label::textColourId, Colours::text());
         closeOverlayButton.setColours (Colours::textMuted(), Colours::text());
         resetPanelShadowCache();
@@ -839,8 +871,8 @@ private:
     }
 
     static constexpr int transitionDurationMs = 300;
-    static constexpr size_t backdropBlurRadius = 64;
-    static constexpr float backdropSnapshotScale = 1.5f;
+    static constexpr size_t backdropBlurRadius = 18;
+    static constexpr float backdropSnapshotScale = 0.45f;
     static constexpr int panelPadding = 24;
     static constexpr int panelHeaderHeight = 28;
     static constexpr int panelHeaderGap = 10;
@@ -869,6 +901,7 @@ private:
     bool dismissInProgress = false;
     bool overlayLayoutUpdatePending = false;
     bool usingPanelAnimationSnapshot = false;
+    bool backdropPrepared = false;
     float transitionProgress = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverlayComponent)

@@ -54,7 +54,10 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
         }
 
         updater.addAnimator(pulse);
-        hoverAnimation.setValueChangedCallback([this](float) { repaint(); });
+        hoverAnimation.setValueChangedCallback([this](float) {
+            updateCurrentImageTransform();
+            repaint();
+        });
     }
 
     SvgButton(juce::String name, juce::String svg, juce::Colour colour) : SvgButton(name, svg, colour, colour) {}
@@ -77,20 +80,6 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
         }
     }
 
-    void mouseEnter(const juce::MouseEvent& e) override {
-        juce::DrawableButton::mouseEnter(e);
-        if (circularBackground || rotateOnHover) {
-            hoverAnimation.animateTo(true, 190, juce::Easings::createEaseInOut());
-        }
-    }
-
-    void mouseExit(const juce::MouseEvent& e) override {
-        juce::DrawableButton::mouseExit(e);
-        if (circularBackground || rotateOnHover) {
-            hoverAnimation.animateTo(false, 190, juce::Easings::createEaseInOut());
-        }
-    }
-
     bool hitTest(int x, int y) override {
         return isEnabled() && juce::DrawableButton::hitTest(x, y);
     }
@@ -108,6 +97,7 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
     void setRotateOnHover(bool shouldRotate, float rotationRadians = juce::MathConstants<float>::pi / 6.0f) {
         rotateOnHover = shouldRotate;
         hoverRotationRadians = rotationRadians;
+        updateCurrentImageTransform();
         repaint();
     }
 
@@ -118,6 +108,7 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
 
     void resized() override {
         juce::DrawableButton::resized();
+        updateCurrentImageTransform();
         if (pulseUsed) {
             resizedPath = basePath;
             resizedPath.applyTransform(getImageTransform());
@@ -146,19 +137,18 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
             g.drawEllipse(bounds, 1.25f);
         }
 
-        if (!rotateOnHover || hover <= 0.001f) {
-            juce::DrawableButton::paintButton(g, isMouseOverButton, isButtonDown);
-            return;
-        }
-
-        const juce::Graphics::ScopedSaveState state(g);
-        const auto centre = getLocalBounds().toFloat().getCentre();
-        g.addTransform(juce::AffineTransform::rotation(hoverRotationRadians * hover, centre.x, centre.y));
         juce::DrawableButton::paintButton(g, isMouseOverButton, isButtonDown);
     }
 
     void buttonStateChanged() override {
         juce::DrawableButton::buttonStateChanged();
+        if (circularBackground || rotateOnHover) {
+            const auto shouldHover = isMouseOver(true);
+            if (hoverAnimation.getTargetState() != shouldHover) {
+                hoverAnimation.animateTo(shouldHover, 190, juce::Easings::createEaseInOut());
+            }
+        }
+        updateCurrentImageTransform();
         if (pulseUsed && getToggleState() != prevToggleState) {
             if (getToggleState()) {
                 pulse.start();
@@ -245,6 +235,25 @@ public:
     }
 
 private:
+    void updateCurrentImageTransform() {
+        auto* currentImage = getCurrentImage();
+        if (currentImage == nullptr || getLocalBounds().isEmpty()) {
+            return;
+        }
+
+        auto transform = imageTransform;
+        if (getStyle() != juce::DrawableButton::ButtonStyle::ImageRaw) {
+            transform = juce::RectanglePlacement(juce::RectanglePlacement::centred)
+                            .getTransformToFit(currentImage->getDrawableBounds(), getImageBounds());
+        }
+        if (rotateOnHover) {
+            const auto centre = getLocalBounds().toFloat().getCentre();
+            transform = transform.followedBy(juce::AffineTransform::rotation(
+                hoverRotationRadians * hoverAnimation.getProgress(), centre.x, centre.y));
+        }
+        currentImage->setDrawableTransform(transform);
+    }
+
     juce::Colour hoverColour(juce::Colour colour) const {
         const auto neutralHover = Theme::isDark() ? colour.brighter(0.12f) : colour.darker(0.10f);
         return hoverColourOverride.value_or(neutralHover);
