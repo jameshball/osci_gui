@@ -33,10 +33,8 @@ void drawDashedRoundedRectangle (juce::Graphics& g,
                                  juce::Rectangle<float> bounds,
                                  float radius,
                                  float thickness,
-                                 juce::Colour colour,
-                                 float phase)
+                                 juce::Colour colour)
 {
-    juce::ignoreUnused (phase);
     juce::Path outline;
     outline.addRoundedRectangle (bounds, radius);
 
@@ -134,11 +132,7 @@ FileDropZoneComponent::FileDropZoneComponent()
     setWantsKeyboardFocus (true);
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
 
-    auto repaintOnAnimation = [this] (float)
-    {
-        repaint();
-        resized();
-    };
+    auto repaintOnAnimation = [this] (float) { repaint(); };
     hoverAnimation.setValueChangedCallback (repaintOnAnimation);
     dragAnimation.setValueChangedCallback (repaintOnAnimation);
     pulseAnimation.setValueChangedCallback (repaintOnAnimation);
@@ -322,8 +316,7 @@ void FileDropZoneComponent::paint (juce::Graphics& g)
                                 bounds.reduced (borderThickness * 0.5f),
                                 cornerRadius,
                                 borderThickness,
-                                accent.withAlpha (borderAlpha),
-                                dashPhase);
+                                accent.withAlpha (borderAlpha));
 
     const auto textColour = Colours::text().withAlpha (disabled ? 0.42f : 0.92f);
     const auto mutedText = Colours::textSubtle().withAlpha (disabled ? 0.32f : 0.68f);
@@ -618,7 +611,7 @@ void FileDropZoneComponent::updateActionButton()
 
 void FileDropZoneComponent::updateAnimationTimer()
 {
-    const auto shouldRun = dragActive || status == Status::busy || pulseAnimation.isAnimating() || rejectAnimation.isAnimating();
+    const auto shouldRun = status == Status::busy;
 
     if (shouldRun && ! isTimerRunning())
         startTimerHz (30);
@@ -633,10 +626,6 @@ juce::Colour FileDropZoneComponent::getAccentColour() const
 
 void FileDropZoneComponent::timerCallback()
 {
-    dashPhase += dragActive ? 1.35f : 0.42f;
-    if (dashPhase > dashLength + dashGap)
-        dashPhase -= dashLength + dashGap;
-
     busyPhase += 0.035f;
     if (busyPhase > 1.0f)
         busyPhase -= 1.0f;

@@ -79,7 +79,6 @@ private:
     bool dragActive = false;
     bool dragAccepted = false;
     Status status = Status::empty;
-    float dashPhase = 0.0f;
     float busyPhase = 0.0f;
     std::optional<juce::Colour> customAccentColour;
 

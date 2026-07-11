@@ -86,6 +86,26 @@ public:
         dismiss();
     }
 
+    void replaceWith (std::unique_ptr<OverlayComponent> replacement) {
+        if (replacement == nullptr) {
+            return;
+        }
+
+        auto pendingReplacement = std::make_shared<std::unique_ptr<OverlayComponent>> (std::move (replacement));
+        const juce::Component::SafePointer<juce::Component> safeParent (getParentComponent());
+        auto dismissAndContinue = std::move (onDismissRequested);
+        onDismissRequested = [safeParent, pendingReplacement, dismissAndContinue = std::move (dismissAndContinue)]() mutable {
+            if (safeParent != nullptr && *pendingReplacement != nullptr) {
+                show (*safeParent.getComponent(), std::move (*pendingReplacement));
+            }
+
+            if (dismissAndContinue != nullptr) {
+                dismissAndContinue();
+            }
+        };
+        dismiss();
+    }
+
     void captureBackdropFrom (juce::Component& source) {
         backdropPrepared = true;
         if (lightweight) {
