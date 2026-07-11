@@ -29,6 +29,8 @@ public:
     void setStatus (Status newStatus, juce::String message = {});
     void setAcceptedDescription (juce::String text);
     void setIsFileAccepted (std::function<bool (const juce::File&)> predicate);
+    void setAccentColour (juce::Colour colour);
+    void clearAccentColour();
 
     std::function<void()> onBrowseRequested;
     std::function<void (std::vector<juce::File>)> onFilesDropped;
@@ -62,6 +64,7 @@ private:
     void triggerRejectNudge();
     void updateActionButton();
     void updateAnimationTimer();
+    juce::Colour getAccentColour() const;
     void timerCallback() override;
 
     juce::String title = "Drop files here";
@@ -78,6 +81,7 @@ private:
     Status status = Status::empty;
     float dashPhase = 0.0f;
     float busyPhase = 0.0f;
+    std::optional<juce::Colour> customAccentColour;
 
     std::function<bool (const juce::File&)> isFileAccepted;
     juce::TextButton actionButton;

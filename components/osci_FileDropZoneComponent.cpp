@@ -7,18 +7,13 @@ constexpr auto borderThickness = 2.0f;
 constexpr auto dashLength = 12.0f;
 constexpr auto dashGap = 8.0f;
 
-juce::Colour accentColour()
-{
-    return Colours::categoryFileSources();
-}
-
-juce::Colour statusColour (FileDropZoneComponent::Status status)
+juce::Colour statusColour (FileDropZoneComponent::Status status, juce::Colour accent)
 {
     switch (status) {
         case FileDropZoneComponent::Status::dragAccept:
         case FileDropZoneComponent::Status::selected:
         case FileDropZoneComponent::Status::success:
-            return accentColour();
+            return accent;
         case FileDropZoneComponent::Status::warning:
         case FileDropZoneComponent::Status::dragReject:
             return Colours::warning();
@@ -28,10 +23,10 @@ juce::Colour statusColour (FileDropZoneComponent::Status status)
             return Colours::categoryScripting();
         case FileDropZoneComponent::Status::disabled:
         case FileDropZoneComponent::Status::empty:
-            return accentColour();
+            return accent;
     }
 
-    return accentColour();
+    return accent;
 }
 
 void drawDashedRoundedRectangle (juce::Graphics& g,
@@ -234,6 +229,20 @@ void FileDropZoneComponent::setIsFileAccepted (std::function<bool (const juce::F
     isFileAccepted = std::move (predicate);
 }
 
+void FileDropZoneComponent::setAccentColour (juce::Colour colour)
+{
+    customAccentColour = colour;
+    lookAndFeelChanged();
+    repaint();
+}
+
+void FileDropZoneComponent::clearAccentColour()
+{
+    customAccentColour.reset();
+    lookAndFeelChanged();
+    repaint();
+}
+
 bool FileDropZoneComponent::isInterestedInFileDrag (const juce::StringArray& files)
 {
     return canAcceptDrops() && files.size() > 0;
@@ -282,7 +291,7 @@ void FileDropZoneComponent::paint (juce::Graphics& g)
         return;
 
     const auto effectiveStatus = getEffectiveStatus();
-    const auto accent = statusColour (effectiveStatus);
+    const auto accent = statusColour (effectiveStatus, getAccentColour());
     const auto hover = hoverAnimation.getProgress();
     const auto drag = dragAnimation.getProgress();
     const auto pulse = pulseAnimation.getProgress();
@@ -401,14 +410,14 @@ void FileDropZoneComponent::paint (juce::Graphics& g)
     }
 
     g.setColour (textColour);
-    g.setFont (juce::Font (juce::FontOptions (15.8f, juce::Font::bold)));
+    g.setFont (juce::Font (juce::FontOptions (16.5f, juce::Font::bold)));
     LookAndFeelHelpers::drawFittedText (g,
                                         headline,
                                         content.removeFromTop (24.0f),
                                         juce::Justification::centred,
                                         1);
     g.setColour (mutedText);
-    g.setFont (juce::Font (juce::FontOptions (11.5f)));
+    g.setFont (juce::Font (juce::FontOptions (12.5f)));
     LookAndFeelHelpers::drawFittedText (g,
                                         detail,
                                         content.removeFromTop (22.0f),
@@ -449,8 +458,9 @@ void FileDropZoneComponent::resized()
 
 void FileDropZoneComponent::lookAndFeelChanged()
 {
-    actionButton.setColour (juce::TextButton::buttonColourId, accentColour().withAlpha (0.20f));
-    actionButton.setColour (juce::TextButton::buttonOnColourId, accentColour().withAlpha (0.32f));
+    const auto accent = getAccentColour();
+    actionButton.setColour (juce::TextButton::buttonColourId, accent.withAlpha (0.20f));
+    actionButton.setColour (juce::TextButton::buttonOnColourId, accent.withAlpha (0.32f));
     actionButton.setColour (juce::TextButton::textColourOffId, Colours::text().withAlpha (0.92f));
 }
 
@@ -613,6 +623,11 @@ void FileDropZoneComponent::updateAnimationTimer()
         startTimerHz (30);
     else if (! shouldRun && isTimerRunning())
         stopTimer();
+}
+
+juce::Colour FileDropZoneComponent::getAccentColour() const
+{
+    return customAccentColour.value_or (Colours::accentColor());
 }
 
 void FileDropZoneComponent::timerCallback()
