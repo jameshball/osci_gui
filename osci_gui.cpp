@@ -16,6 +16,7 @@
 #include "components/osci_HoverAnimationMixin.cpp"
 #include "components/osci_GridItemComponent.cpp"
 #include "components/osci_GridComponent.cpp"
+#include "components/osci_FileDropZoneComponent.cpp"
 #include "components/osci_CustomTooltipWindow.cpp"
 #include "components/osci_DownloaderComponent.cpp"
 #include "components/osci_VolumeComponent.cpp"
