@@ -14,6 +14,7 @@
 #include "components/osci_UndoRedoComponent.cpp"
 #include "components/osci_ToggleAnimationController.cpp"
 #include "components/osci_HoverAnimationMixin.cpp"
+#include "components/osci_AnimatedTextButton.cpp"
 #include "components/osci_GridItemComponent.cpp"
 #include "components/osci_GridComponent.cpp"
 #include "components/osci_FileDropZoneComponent.cpp"

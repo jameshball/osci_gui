@@ -53,6 +53,7 @@
 #include "components/osci_BooleanParamCCHelper.h"
 #include "components/osci_ToggleAnimationController.h"
 #include "components/osci_HoverAnimationMixin.h"
+#include "components/osci_AnimatedTextButton.h"
 #include "components/osci_OverlayListBox.h"
 #include "components/osci_TextEditor.h"
 #include "components/osci_SvgButton.h"

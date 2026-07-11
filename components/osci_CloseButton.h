@@ -18,7 +18,6 @@ public:
         setInterceptsMouseClicks (false, true);
         setMouseCursor (juce::MouseCursor::PointingHandCursor);
 
-        iconButton.setTooltip ("Close");
         iconButton.setMouseCursor (juce::MouseCursor::PointingHandCursor);
         iconButton.onClick = [this] {
             if (onClick != nullptr) {
