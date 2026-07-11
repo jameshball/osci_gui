@@ -27,7 +27,13 @@ namespace Svg {
 
 class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParameter::Listener, public juce::AsyncUpdater {
  public:
-    SvgButton(juce::String name, juce::String svg, juce::Colour colour, juce::Colour colourOn, juce::AudioProcessorParameter* toggle = nullptr, juce::String toggledSvg = "") : juce::DrawableButton(name, juce::DrawableButton::ButtonStyle::ImageFitted), toggle(toggle), updater(this), svgSource(std::move(svg)), toggledSvgSource(std::move(toggledSvg)) {
+    SvgButton(juce::String name, juce::String svg, juce::Colour colour, juce::Colour colourOn, juce::AudioProcessorParameter* toggle = nullptr, juce::String toggledSvg = "")
+        : juce::DrawableButton(name, juce::DrawableButton::ButtonStyle::ImageFitted),
+          toggle(toggle),
+          updater(this),
+          hoverAnimation(this),
+          svgSource(std::move(svg)),
+          toggledSvgSource(std::move(toggledSvg)) {
         rebuildImages (colour, colourOn);
 
         if (normalImage == nullptr) {
@@ -48,6 +54,7 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
         }
 
         updater.addAnimator(pulse);
+        hoverAnimation.setValueChangedCallback([this](float) { repaint(); });
     }
 
     SvgButton(juce::String name, juce::String svg, juce::Colour colour) : SvgButton(name, svg, colour, colour) {}
@@ -72,10 +79,16 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
 
     void mouseEnter(const juce::MouseEvent& e) override {
         juce::DrawableButton::mouseEnter(e);
+        if (circularBackground || rotateOnHover) {
+            hoverAnimation.animateTo(true, 170, juce::Easings::createEaseOut());
+        }
     }
 
     void mouseExit(const juce::MouseEvent& e) override {
         juce::DrawableButton::mouseExit(e);
+        if (circularBackground || rotateOnHover) {
+            hoverAnimation.animateTo(false, 170, juce::Easings::createEaseOut());
+        }
     }
 
     bool hitTest(int x, int y) override {
@@ -84,6 +97,23 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
 
     void setPulseAnimation(bool pulseUsed) {
         this->pulseUsed = pulseUsed;
+    }
+
+    void setCircularBackground(bool shouldUseCircularBackground, int iconInset = 10) {
+        circularBackground = shouldUseCircularBackground;
+        setEdgeIndent(shouldUseCircularBackground ? iconInset : 3);
+        repaint();
+    }
+
+    void setRotateOnHover(bool shouldRotate, float rotationRadians = juce::MathConstants<float>::halfPi) {
+        rotateOnHover = shouldRotate;
+        hoverRotationRadians = rotationRadians;
+        repaint();
+    }
+
+    void setHoverColour(juce::Colour colour) {
+        hoverColourOverride = colour;
+        rebuildImages(lastOffColour, lastOnColour);
     }
 
     void resized() override {
@@ -100,6 +130,31 @@ class SvgButton : public juce::DrawableButton, public juce::AudioProcessorParame
             g.setColour(Colours::shadow().withAlpha(juce::jlimit(0.0f, 1.0f, colourFade / 1.5f)));
             g.fillPath(resizedPath);
         }
+    }
+
+    void paintButton(juce::Graphics& g, bool isMouseOverButton, bool isButtonDown) override {
+        const auto hover = hoverAnimation.getProgress();
+        if (circularBackground) {
+            auto bounds = getLocalBounds().toFloat().reduced(0.75f);
+            auto fill = Colours::neutralFill(0.08f + hover * 0.08f);
+            if (isButtonDown) {
+                fill = Colours::neutralFill(0.20f);
+            }
+            g.setColour(fill);
+            g.fillEllipse(bounds);
+            g.setColour(Colours::neutralStroke(0.28f + hover * 0.18f));
+            g.drawEllipse(bounds, 1.25f);
+        }
+
+        if (!rotateOnHover || hover <= 0.001f) {
+            juce::DrawableButton::paintButton(g, isMouseOverButton, isButtonDown);
+            return;
+        }
+
+        const juce::Graphics::ScopedSaveState state(g);
+        const auto centre = getLocalBounds().toFloat().getCentre();
+        g.addTransform(juce::AffineTransform::rotation(hoverRotationRadians * hover, centre.x, centre.y));
+        juce::DrawableButton::paintButton(g, isMouseOverButton, isButtonDown);
     }
 
     void buttonStateChanged() override {
@@ -129,9 +184,13 @@ private:
     juce::AudioProcessorParameter* toggle;
 
     juce::VBlankAnimatorUpdater updater;
+    ToggleAnimationController hoverAnimation;
     float colourFade = 0.0;
     bool pulseUsed = false;
     bool prevToggleState = false;
+    bool circularBackground = false;
+    bool rotateOnHover = false;
+    float hoverRotationRadians = juce::MathConstants<float>::halfPi;
     juce::Path basePath;
     juce::Path resizedPath;
     juce::AffineTransform imageTransform; // Transform applied to all state images
@@ -149,6 +208,7 @@ private:
     juce::String toggledSvgSource;
     juce::Colour lastOffColour;
     juce::Colour lastOnColour;
+    std::optional<juce::Colour> hoverColourOverride;
 
 public:
     // Allows callers to adjust the placement/scale/rotation of the SVG within the button.
@@ -185,7 +245,9 @@ public:
     }
 
 private:
-    static juce::Colour hoverColour (juce::Colour colour) { return colour.interpolatedWith (Colours::accentColor(), 0.10f); }
+    juce::Colour hoverColour(juce::Colour colour) const {
+        return hoverColourOverride.value_or(colour.interpolatedWith(Colours::accentColor(), 0.10f));
+    }
     static juce::Colour downColour (juce::Colour colour) { return colour.interpolatedWith (Colours::shadow(), Theme::isDark() ? 0.25f : 0.18f); }
     static juce::Colour disabledColour (juce::Colour colour) { return colour.withMultipliedAlpha (0.36f); }
 
@@ -200,12 +262,12 @@ private:
         const auto& onSource = toggledSvgSource.isNotEmpty() ? toggledSvgSource : svgSource;
 
         normalImage = createImage (svgSource, colour);
-        overImage = createImage (svgSource, hoverColour (colour));
+        overImage = createImage(svgSource, hoverColour(colour));
         downImage = createImage (svgSource, downColour (colour));
         disabledImage = createImage (svgSource, disabledColour (colour));
 
         normalImageOn = createImage (onSource, colourOn);
-        overImageOn = createImage (onSource, hoverColour (colourOn));
+        overImageOn = createImage(onSource, hoverColour(colourOn));
         downImageOn = createImage (onSource, downColour (colourOn));
         disabledImageOn = createImage (onSource, disabledColour (colourOn));
 
