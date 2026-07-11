@@ -758,11 +758,13 @@ private:
     void startPresentationAnimationIfReady() {
         if (!isAttachedForPresentation()
             || presentationStarted
+            || presentationScheduled
             || dismissInProgress
             || panelLayerBounds.isEmpty()) {
             return;
         }
 
+        presentationScheduled = true;
         transitionController.snapTo (false);
         beginPanelSnapshotAnimation();
         updateBackdropAlpha();
@@ -778,6 +780,7 @@ private:
     }
 
     void runPresentationAnimation() {
+        presentationScheduled = false;
         if (!isAttachedForPresentation() || presentationStarted || dismissInProgress || panelLayerBounds.isEmpty()) {
             return;
         }
@@ -898,6 +901,7 @@ private:
     bool dismissible = true;
     bool reserveHeaderSpace = true;
     bool presentationStarted = false;
+    bool presentationScheduled = false;
     bool dismissInProgress = false;
     bool overlayLayoutUpdatePending = false;
     bool usingPanelAnimationSnapshot = false;
