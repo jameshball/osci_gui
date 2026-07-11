@@ -1,26 +1,6 @@
 #include "osci_ImagePreviewComponent.h"
 
 namespace osci {
-namespace {
-constexpr auto defaultMagnifierSvg = R"svg(
-<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="#ffffff" stroke-width="2.2"/>
-  <path d="M15.5 15.5 L21 21" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
-</svg>)svg";
-
-void drawCheckerboard(juce::Graphics& g, juce::Rectangle<int> area) {
-    constexpr int tileSize = 10;
-    const auto first = Colours::surfaceSunken();
-    const auto second = Colours::surfaceRaised().interpolatedWith(first, 0.55f);
-    for (int y = area.getY(); y < area.getBottom(); y += tileSize) {
-        for (int x = area.getX(); x < area.getRight(); x += tileSize) {
-            const auto alternate = ((x - area.getX()) / tileSize + (y - area.getY()) / tileSize) % 2 != 0;
-            g.setColour(alternate ? second : first);
-            g.fillRect(juce::Rectangle<int>(x, y, tileSize, tileSize).getIntersection(area));
-        }
-    }
-}
-} // namespace
 
 ImagePreviewComponent::ImagePreviewComponent()
     : juce::Button("Image preview"), hoverAnimation(this) {
@@ -28,41 +8,11 @@ ImagePreviewComponent::ImagePreviewComponent()
     setMouseCursor(juce::MouseCursor::PointingHandCursor);
     setTriggeredOnMouseDown(false);
     hoverAnimation.setValueChangedCallback([this](float) { repaint(); });
-    rebuildMagnifier(defaultMagnifierSvg);
-    removeButton.setVisible(false);
-    addAndMakeVisible(removeButton);
     onClick = [this] {
         if (image.isValid() && onOpenRequested != nullptr) {
             onOpenRequested();
         }
     };
-}
-
-ImagePreviewComponent::RemoveButton::RemoveButton()
-    : juce::Button("Remove image") {
-    setName("Remove image");
-    setTooltip("Remove image");
-    setMouseCursor(juce::MouseCursor::PointingHandCursor);
-}
-
-void ImagePreviewComponent::RemoveButton::paintButton(juce::Graphics& g, bool isMouseOver, bool isButtonDown) {
-    auto bounds = getLocalBounds().toFloat().reduced(0.75f);
-    const auto fillAlpha = isButtonDown ? 0.92f : (isMouseOver ? 0.82f : 0.68f);
-    g.setColour(juce::Colours::black.withAlpha(fillAlpha));
-    g.fillEllipse(bounds);
-    g.setColour(juce::Colours::white.withAlpha(isMouseOver ? 0.98f : 0.86f));
-    g.drawEllipse(bounds, isMouseOver ? 1.6f : 1.25f);
-
-    const auto cross = bounds.reduced(8.0f);
-    juce::Path path;
-    path.startNewSubPath(cross.getTopLeft());
-    path.lineTo(cross.getBottomRight());
-    path.startNewSubPath(cross.getTopRight());
-    path.lineTo(cross.getBottomLeft());
-    g.strokePath(path,
-                 juce::PathStrokeType(2.0f,
-                                      juce::PathStrokeType::JointStyle::curved,
-                                      juce::PathStrokeType::EndCapStyle::rounded));
 }
 
 void ImagePreviewComponent::setImage(juce::Image newImage) {
@@ -91,10 +41,19 @@ void ImagePreviewComponent::setMagnifierSvg(juce::String svg) {
     repaint();
 }
 
-void ImagePreviewComponent::setRemoveAction(std::function<void()> action, juce::String componentID) {
-    removeButton.onClick = std::move(action);
-    removeButton.setComponentID(std::move(componentID));
-    removeButton.setVisible(removeButton.onClick != nullptr);
+void ImagePreviewComponent::setRemoveAction(std::function<void()> action, juce::String closeButtonSvg, juce::String componentID) {
+    removeButton.reset();
+    if (action == nullptr || closeButtonSvg.isEmpty()) {
+        return;
+    }
+
+    removeButton = std::make_unique<CloseButton>(std::move(closeButtonSvg), "Remove image", juce::Colours::white, juce::Colours::white);
+    removeButton->setComponentID(std::move(componentID));
+    removeButton->setPaintsBackground(true);
+    removeButton->setIconPadding(8);
+    removeButton->onClick = std::move(action);
+    addAndMakeVisible(*removeButton);
+    resized();
 }
 
 void ImagePreviewComponent::paintButton(juce::Graphics& g, bool isMouseOver, bool isButtonDown) {
@@ -108,7 +67,7 @@ void ImagePreviewComponent::paintButton(juce::Graphics& g, bool isMouseOver, boo
     juce::Path clip;
     clip.addRoundedRectangle(bounds, radius);
     g.reduceClipRegion(clip);
-    drawCheckerboard(g, bounds.getSmallestIntegerContainer());
+    drawImageCheckerboard(g, bounds.getSmallestIntegerContainer());
 
     if (image.isValid()) {
         const auto source = image.getBounds().toFloat();
@@ -159,7 +118,9 @@ void ImagePreviewComponent::paintButton(juce::Graphics& g, bool isMouseOver, boo
 }
 
 void ImagePreviewComponent::resized() {
-    removeButton.setBounds(getLocalBounds().removeFromRight(34).removeFromTop(34).reduced(3));
+    if (removeButton != nullptr) {
+        removeButton->setBounds(getLocalBounds().removeFromRight(34).removeFromTop(34).reduced(3));
+    }
 }
 
 void ImagePreviewComponent::mouseEnter(const juce::MouseEvent& event) {

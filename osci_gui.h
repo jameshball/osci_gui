@@ -76,6 +76,7 @@
 #include "components/osci_ScrollFadeViewport.h"
 #include "components/osci_OverlayComponent.h"
 #include "components/osci_FileDropZoneComponent.h"
+#include "components/osci_ImagePreviewHelpers.h"
 #include "components/osci_ImagePreviewComponent.h"
 #include "components/osci_ErrorOverlay.h"
 #include "components/osci_NumberedStepsComponent.h"

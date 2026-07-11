@@ -31,12 +31,15 @@ public:
 
     void setIconPadding (int padding) {
         iconPadding = juce::jmax (0, padding);
-        resized();
+        iconButton.setEdgeIndent (iconPadding);
+        if (paintsBackground) {
+            iconButton.setCircularBackground (true, iconPadding);
+        }
     }
 
     void setPaintsBackground (bool shouldPaintBackground) {
         paintsBackground = shouldPaintBackground;
-        repaint();
+        iconButton.setCircularBackground (shouldPaintBackground, iconPadding);
     }
 
     void setIconColours (juce::Colour normalColour, juce::Colour hoverColour) {
@@ -47,20 +50,8 @@ public:
         setIconColours (normalColour, hoverColour);
     }
 
-    void paint (juce::Graphics& g) override {
-        if (! paintsBackground) {
-            return;
-        }
-
-        auto bounds = getLocalBounds().toFloat();
-        g.setColour (Colours::neutralFill (0.035f));
-        g.fillEllipse (bounds);
-        g.setColour (Colours::neutralStroke (0.18f));
-        g.drawEllipse (bounds.reduced (0.5f), 1.0f);
-    }
-
     void resized() override {
-        iconButton.setBounds (getLocalBounds().reduced (iconPadding));
+        iconButton.setBounds (getLocalBounds());
     }
 
 private:
