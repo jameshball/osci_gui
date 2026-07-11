@@ -57,6 +57,7 @@
 #include "components/osci_AnimatedTextButton.h"
 #include "components/osci_OverlayListBox.h"
 #include "components/osci_TextEditor.h"
+#include "components/osci_FormFieldLabel.h"
 #include "components/osci_FormValidation.h"
 #include "components/osci_SvgButton.h"
 #include "components/osci_CloseButton.h"
