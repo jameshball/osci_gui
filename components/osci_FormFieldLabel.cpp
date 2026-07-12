@@ -47,7 +47,7 @@ void FormFieldLabel::paint(juce::Graphics& g) {
     g.drawText(fieldName, bounds, juce::Justification::centredLeft, false);
 
     if (required) {
-        const auto markerOffset = juce::roundToInt(font.getStringWidthFloat(fieldName)) + 4;
+        const auto markerOffset = juce::roundToInt(juce::GlyphArrangement::getStringWidth(font, fieldName)) + 4;
         g.setColour(findColour(requiredMarkerColourId));
         g.drawText("*", bounds.withTrimmedLeft(markerOffset), juce::Justification::centredLeft, false);
     }
