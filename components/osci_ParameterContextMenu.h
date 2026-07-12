@@ -4,8 +4,8 @@
 
 // Global hook so non-UI code (e.g. context menus) can trigger the premium
 // splash screen without holding an editor reference.  Set by the editor's
-// constructor; cleared by its destructor (non-premium builds only).
-extern std::function<void()> showPremiumSplashScreenGlobal;
+// constructor; cleared by its destructor.
+inline std::function<void()> showPremiumSplashScreenGlobal;
 
 // Shared context-menu builder for any parameter (used by EffectComponent,
 // KnobContainerComponent/RotaryKnobComponent, etc.).
