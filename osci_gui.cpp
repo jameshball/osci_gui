@@ -15,6 +15,7 @@
 #include "components/osci_ToggleAnimationController.cpp"
 #include "components/osci_HoverAnimationMixin.cpp"
 #include "components/osci_AnimatedTextButton.cpp"
+#include "components/osci_NotificationComponent.cpp"
 #include "components/osci_FormFieldLabel.cpp"
 #include "components/osci_FormValidation.cpp"
 #include "components/osci_GridItemComponent.cpp"

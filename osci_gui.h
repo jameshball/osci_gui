@@ -61,6 +61,7 @@
 #include "components/osci_FormValidation.h"
 #include "components/osci_SvgButton.h"
 #include "components/osci_CloseButton.h"
+#include "components/osci_NotificationComponent.h"
 #include "components/osci_UndoRedoComponent.h"
 #include "components/osci_SwitchButton.h"
 #include "components/osci_SvgSwitchButton.h"
