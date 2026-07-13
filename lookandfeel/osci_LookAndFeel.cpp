@@ -912,11 +912,12 @@ void LookAndFeel::drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int
     g.setFont(font);
     g.setColour(textColourToUse);
 
-    auto textArea = r.reduced(10, 0);
+    auto textArea = r.reduced(2, 0);
 
     // Tick column — always reserve space so text is aligned across all items
-    constexpr int tickW = 22;
+    constexpr int tickW = 14;
     auto tickArea = textArea.removeFromLeft(tickW).toFloat();
+    textArea.removeFromLeft(4);
     if (isTicked) {
         // Draw a simple checkmark
         auto cx = tickArea.getCentreX();
@@ -959,7 +960,7 @@ void LookAndFeel::getIdealPopupMenuItemSize(const juce::String& text, bool isSep
     }
 
     auto font = juce::Font(13.0f);
-    idealWidth = juce::GlyphArrangement::getStringWidthInt(font, text) + 52;
+    idealWidth = juce::GlyphArrangement::getStringWidthInt(font, text) + 40;
     idealHeight = 28;
 }
 
