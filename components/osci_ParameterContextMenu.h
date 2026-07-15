@@ -1,6 +1,7 @@
 #pragma once
 
-#include <osci_render_core/midi/osci_MidiCCManager.h>
+#include "osci_ContextMenuLabel.h"
+#include <osci_render_core/midi/osci_MidiManager.h>
 
 // Global hook so non-UI code (e.g. context menus) can trigger the premium
 // splash screen without holding an editor reference.  Set by the editor's
@@ -27,7 +28,7 @@ namespace ParameterContextMenu {
     struct Context {
         juce::AudioProcessorParameterWithID* param = nullptr;
         osci::EffectParameter* effectParam = nullptr; // non-null ⇒ show "Edit Range…"
-        osci::MidiCCManager* midiCCManager = nullptr;       // non-null ⇒ show MIDI CC items
+        osci::MidiManager* midiManager = nullptr;       // non-null ⇒ show MIDI CC items
         bool canResetToDefault = true;
         bool canSetValue = true;                        // false for boolean params (toggle only)
         osci::EffectParameter* ccEffectParam = nullptr; // for CC sub-range (may differ from effectParam)
@@ -46,10 +47,10 @@ namespace ParameterContextMenu {
             menu.addItem(firstId + kEditRange, "Edit Range...");
         }
 
-        if (ctx.midiCCManager != nullptr && ctx.param != nullptr) {
+        if (ctx.midiManager != nullptr && ctx.param != nullptr) {
             menu.addSeparator();
-            auto assignment = ctx.midiCCManager->getAssignment(ctx.param);
-            bool learning = ctx.midiCCManager->isLearning(ctx.param);
+            auto assignment = ctx.midiManager->getAssignment(ctx.param);
+            bool learning = ctx.midiManager->isLearning(ctx.param);
 
             auto describeAssignment = [&]() -> juce::String {
                 return "CC " + juce::String(assignment.cc)
@@ -90,20 +91,20 @@ namespace ParameterContextMenu {
             if (showRangeEditor) showRangeEditor();
             return true;
         }
-        if (result == firstId + kLearnCC && ctx.midiCCManager != nullptr && ctx.param != nullptr) {
+        if (result == firstId + kLearnCC && ctx.midiManager != nullptr && ctx.param != nullptr) {
 #if OSCI_RENDER_CORE_ENABLE_MIDI_CC_LEARN
-            if (ctx.midiCCManager->isLearning(ctx.param))
-                ctx.midiCCManager->stopLearning();
+            if (ctx.midiManager->isLearning(ctx.param))
+                ctx.midiManager->stopLearning();
             else
-                ctx.midiCCManager->startLearning(ctx.param, ctx.ccEffectParam);
+                ctx.midiManager->startLearning(ctx.param, ctx.ccEffectParam);
 #else
             if (showPremiumSplashScreenGlobal) showPremiumSplashScreenGlobal();
 #endif
             return true;
         }
-        if (result == firstId + kRemoveCC && ctx.midiCCManager != nullptr && ctx.param != nullptr) {
+        if (result == firstId + kRemoveCC && ctx.midiManager != nullptr && ctx.param != nullptr) {
 #if OSCI_RENDER_CORE_ENABLE_MIDI_CC_LEARN
-            ctx.midiCCManager->removeAssignment(ctx.param);
+            ctx.midiManager->removeAssignment(ctx.param);
 #else
             if (showPremiumSplashScreenGlobal) showPremiumSplashScreenGlobal();
 #endif
@@ -112,10 +113,10 @@ namespace ParameterContextMenu {
         return false;
     }
 
-    // Wire a ChangeListener to a MidiCCManager, removing any previous listener.
+    // Wire a ChangeListener to a MidiManager, removing any previous listener.
     // Shared by EffectComponent, KnobContainerComponent, and BooleanParamCCHelper.
-    inline void wireMidiCCListener(osci::MidiCCManager*& current,
-                                   osci::MidiCCManager& manager,
+    inline void wireMidiCCListener(osci::MidiManager*& current,
+                                   osci::MidiManager& manager,
                                    juce::ChangeListener* listener) {
         if (current)
             current->removeChangeListener(listener);
@@ -135,18 +136,14 @@ namespace ParameterContextMenu {
         juce::PopupMenu menu;
         buildMenu(menu, 1, ctx);
 
-        auto options = juce::PopupMenu::Options().withTargetScreenArea(
-            juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1));
-
-        auto safeTarget = juce::Component::SafePointer<juce::Component>(repaintTarget);
-        menu.showMenuAsync(options,
-            [safeTarget, ctx,
+        osci::showContextMenuAsync(std::move(menu), screenPos, repaintTarget,
+            [repaintTarget = juce::Component::SafePointer<juce::Component>(repaintTarget), ctx,
              onReset = std::move(onReset),
              onSetValue = std::move(onSetValue),
              onEditRange = std::move(onEditRange)](int result) {
-                if (safeTarget == nullptr) return;
+                if (repaintTarget == nullptr) return;
                 if (handleResult(result, 1, ctx, onReset, onSetValue, onEditRange))
-                    safeTarget->repaint();
+                    repaintTarget->repaint();
             });
     }
 

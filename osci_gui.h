@@ -50,6 +50,7 @@
 
 #include "lookandfeel/osci_LookAndFeel.h"
 #include "lookandfeel/osci_OverlayLookAndFeel.h"
+#include "components/osci_ContextMenuLabel.h"
 #include "components/osci_ParameterContextMenu.h"
 #include "components/osci_BooleanParamCCHelper.h"
 #include "components/osci_ToggleAnimationController.h"

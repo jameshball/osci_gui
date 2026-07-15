@@ -11,32 +11,32 @@ struct BooleanParamCCHelper : private juce::ChangeListener {
     BooleanParamCCHelper() = default;
 
     ~BooleanParamCCHelper() {
-        if (midiCCManager != nullptr)
-            midiCCManager->removeChangeListener(this);
+        if (midiManager != nullptr)
+            midiManager->removeChangeListener(this);
     }
 
     void init(osci::BooleanParameter* p, juce::Component* ownerComp) {
         parameter = p;
         owner = ownerComp;
-        if (p != nullptr && p->midiCCManager != nullptr)
-            wireMidiCC(*p->midiCCManager);
+        if (p != nullptr && p->midiManager != nullptr)
+            wireMidiCC(*p->midiManager);
     }
 
-    void wireMidiCC(osci::MidiCCManager& mgr) {
-        ParameterContextMenu::wireMidiCCListener(midiCCManager, mgr, this);
+    void wireMidiCC(osci::MidiManager& mgr) {
+        ParameterContextMenu::wireMidiCCListener(midiManager, mgr, this);
     }
 
     bool isLearning() const {
-        return midiCCManager != nullptr && parameter != nullptr
-               && midiCCManager->isLearning(parameter);
+        return midiManager != nullptr && parameter != nullptr
+               && midiManager->isLearning(parameter);
     }
 
     void showContextMenu(juce::Point<int> screenPos) {
-        if (midiCCManager == nullptr || parameter == nullptr) return;
+        if (midiManager == nullptr || parameter == nullptr) return;
 
         ParameterContextMenu::Context ctx;
         ctx.param = parameter;
-        ctx.midiCCManager = midiCCManager;
+        ctx.midiManager = midiManager;
         ctx.canResetToDefault = true;
         ctx.canSetValue = false;
 
@@ -51,7 +51,7 @@ private:
     }
 
     osci::BooleanParameter* parameter = nullptr;
-    osci::MidiCCManager* midiCCManager = nullptr;
+    osci::MidiManager* midiManager = nullptr;
     juce::Component* owner = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BooleanParamCCHelper)
