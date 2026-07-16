@@ -36,6 +36,22 @@ public:
     std::function<void(juce::Point<int>)> onContextMenu;
 
 private:
+    bool hitTest(int x, int y) override {
+        if (getText().isEmpty()) {
+            return false;
+        }
+
+        const auto contentBounds = getBorderSize().subtractedFrom(getLocalBounds());
+        juce::GlyphArrangement glyphs;
+        glyphs.addLineOfText(getFont(), getText(), 0.0f, 0.0f);
+        const auto glyphBounds = glyphs.getBoundingBox(0, glyphs.getNumGlyphs(), true);
+        const int textWidth = juce::jmin(contentBounds.getWidth(), juce::roundToInt(glyphBounds.getWidth()) + 6);
+        const int textHeight = juce::jmin(contentBounds.getHeight(), juce::roundToInt(getFont().getHeight()) + 4);
+        const auto textBounds = getJustificationType().appliedToRectangle(
+            juce::Rectangle<int>(textWidth, textHeight), contentBounds);
+        return textBounds.contains(x, y);
+    }
+
     void mouseDown(const juce::MouseEvent& event) override {
         if ((event.mods.isLeftButtonDown() || event.mods.isPopupMenu()) && onContextMenu != nullptr) {
             onContextMenu(event.getScreenPosition());
