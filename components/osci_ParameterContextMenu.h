@@ -126,7 +126,7 @@ namespace ParameterContextMenu {
 
     // Build the menu, show it asynchronously, and handle the result.
     // |repaintTarget| is repainted when a menu action is handled.
-    // The three callbacks should already capture any SafePointers they need.
+    // The callback is only invoked while repaintTarget is still alive.
     inline void showAsync(const Context& ctx,
                           juce::Point<int> screenPos,
                           juce::Component* repaintTarget,
@@ -137,11 +137,10 @@ namespace ParameterContextMenu {
         buildMenu(menu, 1, ctx);
 
         osci::showContextMenuAsync(std::move(menu), screenPos, repaintTarget,
-            [repaintTarget = juce::Component::SafePointer<juce::Component>(repaintTarget), ctx,
+            [repaintTarget, ctx,
              onReset = std::move(onReset),
              onSetValue = std::move(onSetValue),
              onEditRange = std::move(onEditRange)](int result) {
-                if (repaintTarget == nullptr) return;
                 if (handleResult(result, 1, ctx, onReset, onSetValue, onEditRange))
                     repaintTarget->repaint();
             });
