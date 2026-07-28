@@ -244,14 +244,14 @@ private:
         auto transform = imageTransform;
         if (getStyle() != juce::DrawableButton::ButtonStyle::ImageRaw) {
             transform = juce::RectanglePlacement(juce::RectanglePlacement::centred)
-                            .getTransformToFit(currentImage->getDrawableBounds(), getImageBounds());
+                            .getTransformToFit(currentImage->getDrawable().getDrawableBounds(), getImageBounds());
         }
         if (rotateOnHover) {
             const auto centre = getLocalBounds().toFloat().getCentre();
             transform = transform.followedBy(juce::AffineTransform::rotation(
                 hoverRotationRadians * hoverAnimation.getProgress(), centre.x, centre.y));
         }
-        currentImage->setDrawableTransform(transform);
+        currentImage->setTransform(transform);
     }
 
     juce::Colour hoverColour(juce::Colour colour) const {
@@ -289,21 +289,8 @@ private:
     }
 
     void applyImageTransform() {
-        auto apply = [this](std::unique_ptr<juce::Drawable>& d) {
-            if (d != nullptr) {
-                d->setDrawableTransform(imageTransform);
-            }
-        };
-        apply(normalImage);
-        apply(overImage);
-        apply(downImage);
-        apply(disabledImage);
-        apply(normalImageOn);
-        apply(overImageOn);
-        apply(downImageOn);
-        apply(disabledImageOn);
-
         setImages(normalImage.get(), overImage.get(), downImage.get(), disabledImage.get(), normalImageOn.get(), overImageOn.get(), downImageOn.get(), disabledImageOn.get());
+        updateCurrentImageTransform();
     }
 };
 

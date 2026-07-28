@@ -134,8 +134,8 @@ void ImagePreviewComponent::mouseExit(const juce::MouseEvent& event) {
 }
 
 void ImagePreviewComponent::rebuildMagnifier(juce::StringRef svg) {
-    const auto xml = juce::XmlDocument::parse(juce::String(svg));
-    magnifier = xml != nullptr ? juce::Drawable::createFromSVG(*xml) : nullptr;
+    const juce::String svgString(svg);
+    magnifier = juce::Drawable::createFromImageData(svgString.toRawUTF8(), static_cast<size_t>(svgString.getNumBytesAsUTF8()));
 }
 
 } // namespace osci
