@@ -1326,25 +1326,27 @@ Texture VisualiserRenderer::createReflectionTexture() {
 
     const auto size = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
     juce::Image canvas(juce::Image::ARGB, size.width, size.height, true);
-    juce::Graphics g(canvas);
-    g.fillAll(visualiserScreenBaseColour());
+    {
+        juce::Graphics g(canvas);
+        g.fillAll(visualiserScreenBaseColour());
 
-    const auto effectiveOverlay = getEffectiveScreenOverlay();
-    if (effectiveOverlay == ScreenOverlay::VectorDisplay) {
-        if (vectorDisplayReflectionImage.isNull()) {
-            vectorDisplayReflectionImage = loadAssetOrFallback(assets.vectorDisplayReflection, createFallbackReflectionTextureImage());
+        const auto effectiveOverlay = getEffectiveScreenOverlay();
+        if (effectiveOverlay == ScreenOverlay::VectorDisplay) {
+            if (vectorDisplayReflectionImage.isNull()) {
+                vectorDisplayReflectionImage = loadAssetOrFallback(assets.vectorDisplayReflection, createFallbackReflectionTextureImage());
+            }
+            drawImageAspectFit(g, vectorDisplayReflectionImage, canvas.getBounds());
+        } else if (effectiveOverlay == ScreenOverlay::Real) {
+            if (oscilloscopeReflectionImage.isNull()) {
+                oscilloscopeReflectionImage = loadAssetOrFallback(assets.realReflection, createFallbackReflectionTextureImage());
+            }
+            drawImageAspectFit(g, oscilloscopeReflectionImage, canvas.getBounds());
+        } else {
+            if (emptyReflectionImage.isNull()) {
+                emptyReflectionImage = loadAssetOrFallback(assets.emptyReflection, createFallbackReflectionTextureImage());
+            }
+            drawImageCropToFill(g, emptyReflectionImage, canvas.getBounds());
         }
-        drawImageAspectFit(g, vectorDisplayReflectionImage, canvas.getBounds());
-    } else if (effectiveOverlay == ScreenOverlay::Real) {
-        if (oscilloscopeReflectionImage.isNull()) {
-            oscilloscopeReflectionImage = loadAssetOrFallback(assets.realReflection, createFallbackReflectionTextureImage());
-        }
-        drawImageAspectFit(g, oscilloscopeReflectionImage, canvas.getBounds());
-    } else {
-        if (emptyReflectionImage.isNull()) {
-            emptyReflectionImage = loadAssetOrFallback(assets.emptyReflection, createFallbackReflectionTextureImage());
-        }
-        drawImageCropToFill(g, emptyReflectionImage, canvas.getBounds());
     }
 
     reflectionOpenGLTexture.loadImage(canvas);
@@ -1359,39 +1361,41 @@ Texture VisualiserRenderer::createScreenTexture() {
 
     const auto size = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
     juce::Image canvas(juce::Image::ARGB, size.width, size.height, true);
-    juce::Graphics g(canvas);
-    g.fillAll(visualiserScreenBaseColour());
+    {
+        juce::Graphics g(canvas);
+        g.fillAll(visualiserScreenBaseColour());
 
-    if (screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule) {
-        if (screenTextureImage.isNull()) {
-            screenTextureImage = loadAssetOrFallback(
-                assets.noiseScreen,
-                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor().brighter(0.25f), true));
-        }
-        drawImageCropToFill(g, screenTextureImage, canvas.getBounds());
+        if (screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule) {
+            if (screenTextureImage.isNull()) {
+                screenTextureImage = loadAssetOrFallback(
+                    assets.noiseScreen,
+                    createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor().brighter(0.25f), true));
+            }
+            drawImageCropToFill(g, screenTextureImage, canvas.getBounds());
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    } else if (screenOverlay == ScreenOverlay::Real) {
-        if (oscilloscopeImage.isNull()) {
-            oscilloscopeImage = loadAssetOrFallback(
-                assets.realScreen,
-                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portInput().brighter(0.25f), false));
-        }
-        drawImageAspectFit(g, oscilloscopeImage, canvas.getBounds());
-    } else if (screenOverlay == ScreenOverlay::VectorDisplay) {
-        if (vectorDisplayImage.isNull()) {
-            vectorDisplayImage = loadAssetOrFallback(
-                assets.vectorDisplayScreen,
-                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portOutput().brighter(0.25f), false));
-        }
-        drawImageAspectFit(g, vectorDisplayImage, canvas.getBounds());
+        } else if (screenOverlay == ScreenOverlay::Real) {
+            if (oscilloscopeImage.isNull()) {
+                oscilloscopeImage = loadAssetOrFallback(
+                    assets.realScreen,
+                    createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portInput().brighter(0.25f), false));
+            }
+            drawImageAspectFit(g, oscilloscopeImage, canvas.getBounds());
+        } else if (screenOverlay == ScreenOverlay::VectorDisplay) {
+            if (vectorDisplayImage.isNull()) {
+                vectorDisplayImage = loadAssetOrFallback(
+                    assets.vectorDisplayScreen,
+                    createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::portOutput().brighter(0.25f), false));
+            }
+            drawImageAspectFit(g, vectorDisplayImage, canvas.getBounds());
 #endif
-    } else {
-        if (emptyScreenImage.isNull()) {
-            emptyScreenImage = loadAssetOrFallback(
-                assets.emptyScreen,
-                createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor(), false));
+        } else {
+            if (emptyScreenImage.isNull()) {
+                emptyScreenImage = loadAssetOrFallback(
+                    assets.emptyScreen,
+                    createFallbackScreenTextureImage(visualiserScreenBaseColour(), osci::Colours::accentColor(), false));
+            }
+            drawImageCropToFill(g, emptyScreenImage, canvas.getBounds());
         }
-        drawImageCropToFill(g, emptyScreenImage, canvas.getBounds());
     }
 
     screenOpenGLTexture.loadImage(canvas);
