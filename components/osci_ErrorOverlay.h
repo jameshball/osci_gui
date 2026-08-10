@@ -49,6 +49,7 @@ public:
         for (auto buttonIndex = 0; buttonIndex < static_cast<int>(options.buttons.size()); ++buttonIndex) {
             auto button = std::make_unique<juce::TextButton>();
             button->setButtonText(options.buttons[static_cast<size_t>(buttonIndex)].text);
+            button->setTitle(options.buttons[static_cast<size_t>(buttonIndex)].text);
             styleButton(*button, options.buttons[static_cast<size_t>(buttonIndex)].primary);
             button->onClick = [this, buttonIndex] {
                 triggerButton(buttonIndex);
@@ -163,7 +164,13 @@ private:
 
         void setText(juce::String textToUse) {
             text = std::move(textToUse);
+            setName(text);
+            setTitle(text);
             repaint();
+        }
+
+        std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override {
+            return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::staticText);
         }
 
         void setJustification(juce::Justification justificationToUse) {

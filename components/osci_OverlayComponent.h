@@ -21,7 +21,7 @@ public:
           panelLayer (*this),
           panelAnimationLayer ("overlayPanelAnimation", juce::Graphics::mediumResamplingQuality),
           transitionController (this),
-          closeOverlayButton (std::move (closeButtonSvg), "closeOverlay", Colours::textMuted(), Colours::text()) {
+          closeOverlayButton (std::move (closeButtonSvg), "Close", Colours::textMuted(), Colours::text()) {
         setOpaque (false);
         setAlwaysOnTop (true);
         setInterceptsMouseClicks (true, true);
@@ -165,6 +165,12 @@ public:
     void setOverlayTitle (const juce::String& title) {
         overlayTitleLabel.setText (title, juce::dontSendNotification);
         overlayTitleLabel.setVisible (title.isNotEmpty());
+        setName (title);
+        setTitle (title);
+    }
+
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override {
+        return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::dialogWindow);
     }
 
     void setDismissible (bool shouldBeDismissible) {
