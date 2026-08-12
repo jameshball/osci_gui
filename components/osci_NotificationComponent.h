@@ -4,7 +4,7 @@ namespace osci {
 
 class NotificationComponent final : public juce::Component {
 public:
-    explicit NotificationComponent(juce::String closeButtonSvg);
+    NotificationComponent();
 
     std::function<void()> onDismiss;
 

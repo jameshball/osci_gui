@@ -41,13 +41,13 @@ void ImagePreviewComponent::setMagnifierSvg(juce::String svg) {
     repaint();
 }
 
-void ImagePreviewComponent::setRemoveAction(std::function<void()> action, juce::String closeButtonSvg, juce::String componentID) {
+void ImagePreviewComponent::setRemoveAction(std::function<void()> action, juce::String componentID) {
     removeButton.reset();
-    if (action == nullptr || closeButtonSvg.isEmpty()) {
+    if (action == nullptr) {
         return;
     }
 
-    removeButton = std::make_unique<CloseButton>(std::move(closeButtonSvg), "Remove image", juce::Colours::white, juce::Colours::white);
+    removeButton = std::make_unique<CloseButton>("Remove image", juce::Colours::white, juce::Colours::white);
     removeButton->setComponentID(std::move(componentID));
     removeButton->setPaintsBackground(true);
     removeButton->setIconPadding(8);

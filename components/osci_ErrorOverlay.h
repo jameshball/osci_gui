@@ -18,7 +18,6 @@ public:
     };
 
     struct Options {
-        juce::String closeButtonSvg;
         juce::String title = "Error";
         juce::String message;
         Icon icon = Icon::Error;
@@ -30,8 +29,7 @@ public:
     };
 
     explicit ErrorOverlay(Options optionsToUse)
-        : OverlayComponent(std::move(optionsToUse.closeButtonSvg)),
-          options(std::move(optionsToUse)) {
+        : options(std::move(optionsToUse)) {
         setOverlayTitle(options.title);
         setDismissible(options.dismissible);
 

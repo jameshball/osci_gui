@@ -11,7 +11,7 @@ public:
     void setCaption(juce::String newCaption);
     void setAccentColour(juce::Colour colour);
     void setMagnifierSvg(juce::String svg);
-    void setRemoveAction(std::function<void()> action, juce::String closeButtonSvg, juce::String componentID = {});
+    void setRemoveAction(std::function<void()> action, juce::String componentID = {});
 
     std::function<void()> onOpenRequested;
 

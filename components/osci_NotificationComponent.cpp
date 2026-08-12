@@ -2,8 +2,8 @@
 
 namespace osci {
 
-NotificationComponent::NotificationComponent(juce::String closeButtonSvg)
-    : closeButton(std::move(closeButtonSvg), "Dismiss notification", Colours::text(), Colours::text()) {
+NotificationComponent::NotificationComponent()
+    : closeButton("Dismiss notification", Colours::text(), Colours::text()) {
     setVisible(false);
 
     titleLabel.setFont(juce::Font(juce::FontOptions(15.0f, juce::Font::bold)));

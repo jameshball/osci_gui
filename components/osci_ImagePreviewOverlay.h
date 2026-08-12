@@ -4,7 +4,7 @@ namespace osci {
 
 class ImagePreviewOverlay final : public OverlayComponent {
 public:
-    ImagePreviewOverlay(juce::String closeButtonSvg, juce::Image image, juce::String title = {});
+    ImagePreviewOverlay(juce::Image image, juce::String title = {});
 
 protected:
     void resizeContent(juce::Rectangle<int> contentArea) override;

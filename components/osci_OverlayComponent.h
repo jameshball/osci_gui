@@ -15,13 +15,13 @@ public:
 // callback.
 class OverlayComponent : public juce::Component {
 public:
-    explicit OverlayComponent (juce::String closeButtonSvg)
+    OverlayComponent()
         : backdropLayer ("overlayBackdrop", juce::Graphics::mediumResamplingQuality),
           blurredBackdropLayer ("overlayBlurredBackdrop", juce::Graphics::mediumResamplingQuality),
           panelLayer (*this),
           panelAnimationLayer ("overlayPanelAnimation", juce::Graphics::mediumResamplingQuality),
           transitionController (this),
-          closeOverlayButton (std::move (closeButtonSvg), "Close", Colours::textMuted(), Colours::text()) {
+          closeOverlayButton ("Close", Colours::textMuted(), Colours::text()) {
         setOpaque (false);
         setAlwaysOnTop (true);
         setInterceptsMouseClicks (true, true);
@@ -940,24 +940,20 @@ private:
 class ComponentOverlay : public OverlayComponent {
 public:
     ComponentOverlay (std::unique_ptr<juce::Component> contentToUse,
-                      juce::String closeButtonSvg,
                       juce::String title,
                       juce::Point<int> preferredContentSizeToUse,
                       bool shouldReserveHeaderSpace)
-        : OverlayComponent (std::move (closeButtonSvg)),
-          ownedContent (std::move (contentToUse)),
+        : ownedContent (std::move (contentToUse)),
           content (ownedContent.get()),
           reserveHeaderSpaceForPreferredSize (shouldReserveHeaderSpace) {
         initialiseContent (std::move (title), preferredContentSizeToUse, shouldReserveHeaderSpace);
     }
 
     ComponentOverlay (juce::Component& contentToUse,
-                      juce::String closeButtonSvg,
                       juce::String title,
                       juce::Point<int> preferredContentSizeToUse,
                       bool shouldReserveHeaderSpace)
-        : OverlayComponent (std::move (closeButtonSvg)),
-          content (&contentToUse),
+        : content (&contentToUse),
           reserveHeaderSpaceForPreferredSize (shouldReserveHeaderSpace) {
         initialiseContent (std::move (title), preferredContentSizeToUse, shouldReserveHeaderSpace);
     }

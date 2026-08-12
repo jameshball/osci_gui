@@ -4,8 +4,7 @@ namespace osci {
 
 class LicenseHelpOverlay final : public OverlayComponent {
 public:
-    explicit LicenseHelpOverlay (juce::String closeButtonSvg)
-        : OverlayComponent (std::move (closeButtonSvg)) {
+    LicenseHelpOverlay() {
         setOverlayTitle ("Find your license key");
 
         configureLabel (messageLabel, juce::Font (juce::FontOptions (14.2f)), juce::Justification::centredLeft);

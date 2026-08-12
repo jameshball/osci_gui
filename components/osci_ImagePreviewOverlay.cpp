@@ -2,8 +2,8 @@
 
 namespace osci {
 
-ImagePreviewOverlay::ImagePreviewOverlay(juce::String closeButtonSvg, juce::Image imageToUse, juce::String title)
-    : OverlayComponent(std::move(closeButtonSvg)), image(std::move(imageToUse)) {
+ImagePreviewOverlay::ImagePreviewOverlay(juce::Image imageToUse, juce::String title)
+    : image(std::move(imageToUse)) {
     setName("Image preview");
     setComponentID("imagePreviewOverlay");
     setOverlayTitle(title.isNotEmpty() ? title : "Image Preview");
