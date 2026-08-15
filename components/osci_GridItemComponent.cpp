@@ -198,12 +198,12 @@ void GridItemComponent::mouseDown (const juce::MouseEvent& event) {
         return;
     }
 
-    if (onHoverEnd) {
-        onHoverEnd();
-    }
-
     if (onItemSelected) {
         onItemSelected (itemId);
+    }
+
+    if (onHoverEnd) {
+        onHoverEnd();
     }
 }
 
