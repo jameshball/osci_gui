@@ -17,6 +17,7 @@ public:
     class ScopedUpdateSuppression {
     public:
         explicit ScopedUpdateSuppression(ParameterSyncHelper& owner) : owner(owner) {
+            jassert(juce::MessageManager::existsAndIsCurrentThread());
             owner.suppressionDepth.fetch_add(1, std::memory_order_relaxed);
         }
 
@@ -49,7 +50,8 @@ public:
 
     // juce::AudioProcessorParameter::Listener
     void parameterValueChanged(int, float) override {
-        if (suppressionDepth.load(std::memory_order_relaxed) == 0) {
+        const bool suppressedOnMessageThread = suppressionDepth.load(std::memory_order_relaxed) > 0 && juce::MessageManager::existsAndIsCurrentThread();
+        if (!suppressedOnMessageThread) {
             triggerAsyncUpdate();
         }
     }
