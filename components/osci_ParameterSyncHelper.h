@@ -14,6 +14,23 @@ class ParameterSyncHelper : public juce::AudioProcessorParameter::Listener,
 public:
     using SyncCallback = std::function<void()>;
 
+    class ScopedUpdateSuppression {
+    public:
+        explicit ScopedUpdateSuppression(ParameterSyncHelper& owner) : owner(owner) {
+            owner.suppressionDepth.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        ~ScopedUpdateSuppression() {
+            owner.suppressionDepth.fetch_sub(1, std::memory_order_relaxed);
+        }
+
+        ScopedUpdateSuppression(const ScopedUpdateSuppression&) = delete;
+        ScopedUpdateSuppression& operator=(const ScopedUpdateSuppression&) = delete;
+
+    private:
+        ParameterSyncHelper& owner;
+    };
+
     explicit ParameterSyncHelper(SyncCallback callback)
         : syncCallback(std::move(callback)) {}
 
@@ -31,7 +48,11 @@ public:
     }
 
     // juce::AudioProcessorParameter::Listener
-    void parameterValueChanged(int, float) override { triggerAsyncUpdate(); }
+    void parameterValueChanged(int, float) override {
+        if (suppressionDepth.load(std::memory_order_relaxed) == 0) {
+            triggerAsyncUpdate();
+        }
+    }
     void parameterGestureChanged(int, bool) override {}
 
     // juce::AsyncUpdater
@@ -43,6 +64,7 @@ public:
 private:
     SyncCallback syncCallback;
     std::vector<juce::AudioProcessorParameter*> trackedParams;
+    std::atomic<int> suppressionDepth{0};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ParameterSyncHelper)
 };
