@@ -15,7 +15,7 @@ public:
     void addItem(GridItemComponent* item); // takes ownership
     void addItem(juce::Component& item); // caller retains ownership
     juce::OwnedArray<GridItemComponent>& getItems() { return ownedItems; }
-    int getNumItems() const { return layoutItems.size(); }
+    int getNumItems() const;
     int calculateRequiredHeight(int availableWidth) const;
 
     void setJustifyContent(juce::FlexBox::JustifyContent alignment);
@@ -49,7 +49,7 @@ private:
     ScrollFadeViewport viewport; // scroll container with fades
     juce::Component content; // holds the grid items
     juce::OwnedArray<GridItemComponent> ownedItems;
-    juce::Array<juce::Component*> layoutItems;
+    juce::Array<juce::Component::SafePointer<juce::Component>> layoutItems;
     juce::FlexBox flexBox;
 
     static constexpr int DEFAULT_ITEM_HEIGHT = 80;

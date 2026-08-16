@@ -74,8 +74,10 @@ void GridComponent::resized() {
                               .withMargin(juce::FlexItem::Margin((float)itemMargin)));
     };
 
-    for (auto* item : layoutItems) {
-        addItemFlex(item);
+    for (const auto& item : layoutItems) {
+        if (auto* component = item.getComponent()) {
+            addItemFlex(component);
+        }
     }
 
     // Compute required content height
@@ -100,7 +102,8 @@ void GridComponent::resized() {
 }
 
 int GridComponent::calculateRequiredHeight(int availableWidth) const {
-    if (layoutItems.isEmpty()) {
+    const int numItems = getNumItems();
+    if (numItems == 0) {
         return itemHeight;
     }
 
@@ -108,9 +111,19 @@ int GridComponent::calculateRequiredHeight(int availableWidth) const {
     int itemsPerRow = juce::jmax(1, availableWidth / minItemWidth);
 
     // Calculate number of rows needed
-    int numRows = (layoutItems.size() + itemsPerRow - 1) / itemsPerRow; // Ceiling division
+    int numRows = (numItems + itemsPerRow - 1) / itemsPerRow; // Ceiling division
 
     return numRows * itemHeight;
+}
+
+int GridComponent::getNumItems() const {
+    int numItems = 0;
+    for (const auto& item : layoutItems) {
+        if (item != nullptr) {
+            ++numItems;
+        }
+    }
+    return numItems;
 }
 
 void GridComponent::setItemsInteractive(bool shouldBeInteractive) {

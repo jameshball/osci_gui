@@ -4,6 +4,7 @@ namespace osci {
 
 ColourSwatchComponent::ColourSwatchComponent(std::function<juce::Colour()> colourProvider, juce::String tooltip, int refreshRateHz)
     : colourProvider(std::move(colourProvider)) {
+    setAccessible(false);
     setTooltip(std::move(tooltip));
     updateColour();
     startTimerHz(juce::jmax(1, refreshRateHz));

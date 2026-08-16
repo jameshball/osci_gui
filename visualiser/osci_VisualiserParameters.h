@@ -84,7 +84,6 @@ public:
 #endif
 };
 
-enum class TriggerSource : int { Left = 0, Right = 1 };
 enum class TriggerSlope : int { Rising = 0, Falling = 1 };
 
 class TriggerSourceParameter : public osci::IntParameter {

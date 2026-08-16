@@ -15,6 +15,26 @@ class ToggleLabelComponent : public osci::HoverAnimationMixin,
                              public juce::SettableTooltipClient,
                              public juce::AudioProcessorParameter::Listener,
                              public juce::AsyncUpdater {
+    class ToggleAccessibilityHandler final : public juce::AccessibilityHandler {
+    public:
+        explicit ToggleAccessibilityHandler(ToggleLabelComponent& owner)
+            : juce::AccessibilityHandler(owner, juce::AccessibilityRole::toggleButton, makeActions(owner)), owner(owner) {}
+
+        juce::AccessibleState getCurrentState() const override {
+            auto state = juce::AccessibilityHandler::getCurrentState().withCheckable();
+            return owner.parameter->getBoolValue() ? state.withChecked() : state;
+        }
+
+    private:
+        static juce::AccessibilityActions makeActions(ToggleLabelComponent& owner) {
+            juce::AccessibilityActions actions;
+            actions.addAction(juce::AccessibilityActionType::press, [&owner] { owner.toggleParameter(); });
+            return actions;
+        }
+
+        ToggleLabelComponent& owner;
+    };
+
 public:
     explicit ToggleLabelComponent(osci::BooleanParameter* param, juce::String label = {}, bool useUppercase = true)
         : parameter(param),
@@ -25,6 +45,8 @@ public:
             displayText = displayText.toUpperCase();
         }
         setTooltip(param->getDescription());
+        setTitle(displayText);
+        setDescription(param->getDescription());
         parameter->addListener(this);
         ccHelper.init(param, this);
         setWantsKeyboardFocus(true);
@@ -62,7 +84,8 @@ public:
         const auto selectedTextColour = juce::Colours::white;
         auto textColour = osci::Colours::text().interpolatedWith(selectedTextColour, toggleProgress);
         const auto hoverTextColour = osci::Colours::text().brighter(0.12f).interpolatedWith(selectedTextColour, toggleProgress);
-        textColour = textColour.interpolatedWith(hoverTextColour, hoverProgress * 0.45f);
+        textColour = ccHelper.isLearning() ? osci::Colours::text()
+                                          : textColour.interpolatedWith(hoverTextColour, hoverProgress * 0.45f);
         g.setColour(textColour.withMultipliedAlpha(disabledAlpha));
         g.setFont(juce::Font{juce::FontOptions{juce::jlimit(9.0f, 12.0f, getHeight() * 0.4f)}});
         g.drawText(displayText, bounds, juce::Justification::centred, false);
@@ -115,8 +138,9 @@ public:
         return false;
     }
 
-    void focusGained(FocusChangeType) override { repaint(); }
-    void focusLost(FocusChangeType) override { repaint(); }
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override {
+        return std::make_unique<ToggleAccessibilityHandler>(*this);
+    }
 
     void parameterValueChanged(int, float) override { triggerAsyncUpdate(); }
     void parameterGestureChanged(int, bool) override {}
@@ -124,6 +148,9 @@ public:
         const auto shouldBeOn = parameter->getBoolValue();
         if (toggleAnimation.getTargetState() != shouldBeOn) {
             toggleAnimation.animateTo(shouldBeOn, 85, juce::Easings::createEaseInOut());
+            if (auto* handler = getAccessibilityHandler()) {
+                handler->notifyAccessibilityEvent(juce::AccessibilityEvent::valueChanged);
+            }
         }
         repaint();
     }
@@ -133,6 +160,9 @@ protected:
 
 private:
     void toggleParameter() {
+        if (!isEnabled()) {
+            return;
+        }
         parameter->beginChangeGesture();
         parameter->setBoolValueNotifyingHost(!parameter->getBoolValue());
         parameter->endChangeGesture();
