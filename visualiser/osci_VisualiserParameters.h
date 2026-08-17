@@ -84,6 +84,32 @@ public:
 #endif
 };
 
+enum class TriggerSlope : int { Rising = 0, Falling = 1 };
+
+class TriggerSourceParameter : public osci::IntParameter {
+public:
+    TriggerSourceParameter() : osci::IntParameter("Trigger Source", "triggerSource", VERSION_HINT, 0, 0, 1) {}
+    juce::String getText(float value, int maximumStringLength) const override {
+        const juce::String text = (int)getUnnormalisedValue(value) == 0 ? "Left" : "Right";
+        return text.substring(0, maximumStringLength);
+    }
+    float getValueForText(const juce::String& text) const override {
+        return getNormalisedValue(text.equalsIgnoreCase("Right") ? 1 : 0);
+    }
+};
+
+class TriggerSlopeParameter : public osci::IntParameter {
+public:
+    TriggerSlopeParameter() : osci::IntParameter("Trigger Slope", "triggerSlope", VERSION_HINT, 0, 0, 1) {}
+    juce::String getText(float value, int maximumStringLength) const override {
+        const juce::String text = (int)getUnnormalisedValue(value) == 0 ? "Rising" : "Falling";
+        return text.substring(0, maximumStringLength);
+    }
+    float getValueForText(const juce::String& text) const override {
+        return getNormalisedValue(text.equalsIgnoreCase("Falling") ? 1 : 0);
+    }
+};
+
 inline ScreenOverlay getScreenOverlayForRenderSize(ScreenOverlay overlay, VisualiserRenderSize size) {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     if (!VisualiserGeometry::isSquare(size) && ScreenOverlayParameter::isRealisticDisplay(overlay)) {
@@ -197,6 +223,14 @@ public:
         return triggerValueEffect->getActualValue();
     }
 
+    int getTriggerSourceChannel() const {
+        return triggerSource->getValueUnnormalised();
+    }
+
+    bool isRisingTrigger() const {
+        return triggerSlope->getValueUnnormalised() == (int)TriggerSlope::Rising;
+    }
+
     ScreenOverlayParameter* screenOverlay = new ScreenOverlayParameter("Screen Overlay", "screenOverlay", VERSION_HINT, ScreenOverlay::SmudgedGraticule);
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
     osci::BooleanParameter* upsamplingEnabled = new osci::BooleanParameter(
@@ -215,6 +249,8 @@ public:
     osci::BooleanParameter* visualiserFullScreen = new osci::BooleanParameter("Visualiser Fullscreen", "visualiserFullScreen", VERSION_HINT, false, "Makes the software visualiser fullscreen.");
     osci::BooleanParameter* visualiserPaused = new osci::BooleanParameter("Visualiser Paused", "visualiserPaused", VERSION_HINT, false, "Pauses the visualiser rendering.");
     osci::BooleanParameter* textureOutputEnabled = new osci::BooleanParameter("Texture Output", "textureOutputEnabled", VERSION_HINT, false, "Publishes the visualiser output as a Syphon or Spout texture.");
+    TriggerSourceParameter* triggerSource = new TriggerSourceParameter();
+    TriggerSlopeParameter* triggerSlope = new TriggerSlopeParameter();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     osci::BooleanParameter* flipVertical = new osci::BooleanParameter("Flip Vertical", "flipVertical", VERSION_HINT, false, "Flips the visualiser vertically.");
@@ -418,5 +454,7 @@ public:
     };
     std::vector<osci::IntParameter*> integers = {
         screenOverlay,
+        triggerSource,
+        triggerSlope,
     };
 };

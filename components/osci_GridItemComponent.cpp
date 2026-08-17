@@ -98,9 +98,9 @@ void GridItemComponent::paintListItem (juce::Graphics& g, juce::Rectangle<float>
     g.fillRoundedRectangle (bounds, cornerRadius);
 
     const auto outlineColour = description.isNotEmpty()
-        ? Colours::accentColor()
+        ? Colours::accentColor().withAlpha (0.8f)
         : Colours::outline();
-    g.setColour (outlineColour.withAlpha (description.isNotEmpty() ? 0.8f : 0.9f));
+    g.setColour (outlineColour);
     g.drawRoundedRectangle (bounds, cornerRadius, 1.0f);
 
     auto textArea = bounds.reduced (10, 8);

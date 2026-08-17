@@ -21,6 +21,7 @@
 #include "components/osci_GridItemComponent.cpp"
 #include "components/osci_GridComponent.cpp"
 #include "components/osci_CardComponent.cpp"
+#include "components/osci_ColourSwatchComponent.cpp"
 #include "components/osci_FileDropZoneComponent.cpp"
 #include "components/osci_ImagePreviewHelpers.cpp"
 #include "components/osci_ImagePreviewComponent.cpp"

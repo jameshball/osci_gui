@@ -58,16 +58,19 @@ public:
         switchCircle.setInterceptsMouseClicks (false, false);
     }
     
-    SwitchButton(osci::BooleanParameter* parameter, bool showParameterTooltip = true) : SwitchButton(parameter->name, false) {
+    SwitchButton(osci::BooleanParameter* parameter, bool showParameterTooltip = true, bool showLabel = true) : SwitchButton(parameter->name, false) {
         this->parameter = parameter;
         setToggleState(parameter->getBoolValue(), juce::NotificationType::dontSendNotification);
         parameter->addListener(this);
         ccHelper.init(parameter, this);
-        addAndMakeVisible(label);
         if (showParameterTooltip) {
+            setTooltip(parameter->getDescription());
             label.setTooltip(parameter->getDescription());
         }
-        label.setText(parameter->name, juce::NotificationType::dontSendNotification);
+        if (showLabel) {
+            addAndMakeVisible(label);
+            label.setText(parameter->name, juce::NotificationType::dontSendNotification);
+        }
     }
     
     ~SwitchButton() {

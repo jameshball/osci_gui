@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -81,6 +82,7 @@
 #include "components/osci_ScrollFadeViewport.h"
 #include "components/osci_OverlayComponent.h"
 #include "components/osci_CardComponent.h"
+#include "components/osci_ColourSwatchComponent.h"
 #include "components/osci_FileDropZoneComponent.h"
 #include "components/osci_ImagePreviewHelpers.h"
 #include "components/osci_ImagePreviewComponent.h"

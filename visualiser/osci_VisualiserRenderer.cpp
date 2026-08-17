@@ -216,7 +216,10 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
         if (parameters.isSweepEnabled()) {
             double sweepIncrement = getSweepIncrement();
             double triggerValue = parameters.getTriggerValue();
-            bool belowTrigger = false;
+            const int triggerChannel = juce::jlimit(0, juce::jmax(0, numChannels - 1), parameters.getTriggerSourceChannel());
+            const bool risingTrigger = parameters.isRisingTrigger();
+            bool havePreviousTriggerSample = false;
+            float previousTriggerSample = 0.0f;
             const auto currentRenderSize = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
             const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(currentRenderSize);
             const double startPoint = 1.135 / worldToClipScale.x;
@@ -225,16 +228,21 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
                 long samplePosition = sampleCount - lastTriggerPosition;
                 float sweep = samplePosition * sweepIncrement * 2 * startPoint - startPoint;
 
-                float value = channelData[0][i];
+                const float triggerSample = channelData[triggerChannel][i];
+                const bool crossedTrigger = havePreviousTriggerSample
+                    && (risingTrigger
+                        ? previousTriggerSample < triggerValue && triggerSample >= triggerValue
+                        : previousTriggerSample > triggerValue && triggerSample <= triggerValue);
 
-                if (sweep > startPoint && belowTrigger && value >= triggerValue) {
+                if (sweep > startPoint && crossedTrigger) {
                     lastTriggerPosition = sampleCount;
                 }
 
-                belowTrigger = value < triggerValue;
+                previousTriggerSample = triggerSample;
+                havePreviousTriggerSample = true;
 
                 xSamples.push_back(sweep);
-                ySamples.push_back(value);
+                ySamples.push_back(channelData[0][i]);
                 if (mode == RenderMode::XYZ) {
                     zSamples.push_back(1.0f); // legacy: third component treated as brightness
                 } else if (mode == RenderMode::XYRGB) {
