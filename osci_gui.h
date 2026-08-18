@@ -33,7 +33,7 @@
   license:           GPLv3
   minimumCppStandard: 20
 
- dependencies:      juce_core, juce_graphics, juce_gui_basics, juce_gui_extra, juce_audio_processors, juce_audio_utils, juce_animation, melatonin_blur, osci_render_core
+ dependencies:      juce_core, juce_graphics, juce_gui_basics, juce_gui_extra, juce_audio_processors, juce_audio_utils, juce_animation, melatonin_blur
 
  END_JUCE_MODULE_DECLARATION
 
@@ -47,13 +47,17 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <melatonin_blur/melatonin_blur.h>
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS || OSCI_GUI_ENABLE_VISUALISER
 #include <osci_render_core/osci_render_core.h>
+#endif
 
 #include "lookandfeel/osci_LookAndFeel.h"
 #include "lookandfeel/osci_OverlayLookAndFeel.h"
 #include "components/osci_ContextMenuLabel.h"
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
 #include "components/osci_ParameterContextMenu.h"
 #include "components/osci_BooleanParamCCHelper.h"
+#endif
 #include "components/osci_ToggleAnimationController.h"
 #include "components/osci_HoverAnimationMixin.h"
 #include "components/osci_AnimatedTextButton.h"
@@ -66,7 +70,9 @@
 #include "components/osci_NotificationComponent.h"
 #include "components/osci_UndoRedoComponent.h"
 #include "components/osci_SwitchButton.h"
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
 #include "components/osci_SvgSwitchButton.h"
+#endif
 #include "components/osci_DebouncedCallback.h"
 #include "components/osci_SliderTextBox.h"
 #include "components/osci_LabelledTextBox.h"
@@ -76,12 +82,15 @@
 #include "components/osci_DownloadProgressComponent.h"
 #include "components/osci_DownloaderComponent.h"
 #include "components/osci_StopwatchComponent.h"
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
 #include "components/osci_VolumeComponent.h"
+#endif
 #include "components/osci_CustomTooltipWindow.h"
 #include "components/osci_ScrollFadeOverlay.h"
 #include "components/osci_ScrollFadeViewport.h"
 #include "components/osci_OverlayComponent.h"
 #include "components/osci_CardComponent.h"
+#include "components/osci_MetricCardComponent.h"
 #include "components/osci_ColourSwatchComponent.h"
 #include "components/osci_FileDropZoneComponent.h"
 #include "components/osci_ImagePreviewHelpers.h"
@@ -102,7 +111,9 @@
 #include "components/parameters/osci_InlineEditorHelper.h"
 #include "components/parameters/osci_InlineValueEditor.h"
 #include "components/parameters/osci_DoubleTextBox.h"
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
 #include "components/parameters/osci_ParameterBarComponent.h"
 #include "components/parameters/osci_ToggleLabelComponent.h"
+#endif
 #include "components/sliders/osci_RotaryKnobComponent.h"
 #include "components/sliders/osci_PhaseSliderComponent.h"

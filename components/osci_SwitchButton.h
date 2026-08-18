@@ -28,7 +28,9 @@
 
 #pragma once
 
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
 #include "osci_BooleanParamCCHelper.h"
+#endif
 #include "../lookandfeel/osci_LookAndFeel.h"
 
 namespace jux
@@ -58,6 +60,7 @@ public:
         switchCircle.setInterceptsMouseClicks (false, false);
     }
     
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
     SwitchButton(osci::BooleanParameter* parameter, bool showParameterTooltip = true, bool showLabel = true) : SwitchButton(parameter->name, false) {
         this->parameter = parameter;
         setToggleState(parameter->getBoolValue(), juce::NotificationType::dontSendNotification);
@@ -72,35 +75,46 @@ public:
             label.setText(parameter->name, juce::NotificationType::dontSendNotification);
         }
     }
+#endif
     
     ~SwitchButton() {
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
         if (parameter != nullptr) {
             parameter->removeListener(this);
         }
+#endif
     }
     
     void parameterValueChanged(int parameterIndex, float newValue) override {
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
         juce::WeakReference<SwitchButton> weakThis = this;
         juce::MessageManager::callAsync([weakThis]() {
             if (weakThis != nullptr) {
                 weakThis->setToggleState(weakThis->parameter->getBoolValue(), juce::NotificationType::dontSendNotification);
             }
         });
+#else
+        juce::ignoreUnused(parameterIndex, newValue);
+#endif
     }
     
     void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override {}
 
     void mouseDown(const juce::MouseEvent& e) override {
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
         if (e.mods.isPopupMenu() && parameter != nullptr) {
             ccHelper.showContextMenu(e.getScreenPosition());
             return;
         }
+#endif
         juce::Button::mouseDown(e);
     }
 
     void clicked() override {
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
         if (parameter != nullptr)
             parameter->setBoolValueNotifyingHost(getToggleState());
+#endif
     }
 
     void setMillisecondsToSpendMoving (int newValue)
@@ -116,9 +130,11 @@ public:
         auto cornerSize = (isVertical ? b.getWidth() : b.getHeight()) * 0.5;
         g.setColour (osci::Colours::neutralStroke (0.1f));
         g.drawRoundedRectangle (b, cornerSize, 2.0f);
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
         if (ccHelper.isLearning())
             g.setColour(osci::Colours::midiLearnBackground());
         else
+#endif
             g.setColour (findColour (getSwitchState() ? switchOnBackgroundColour : switchOffBackgroundColour));
         g.fillRoundedRectangle (b, cornerSize);
 
@@ -195,8 +211,10 @@ private:
 
     bool prevToggleState = false;
     
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
     osci::BooleanParameter* parameter = nullptr;
     BooleanParamCCHelper ccHelper;
+#endif
     
     JUCE_DECLARE_WEAK_REFERENCEABLE(SwitchButton)
 };
