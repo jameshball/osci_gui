@@ -12,7 +12,8 @@ enum class ScreenOverlay : int {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     Real = 5,
     VectorDisplay = 6,
-    MAX = 6,
+    Transparent = 7,
+    MAX = 7,
 #else
     MAX = 4,
 #endif
@@ -37,6 +38,8 @@ public:
                 return "Real Oscilloscope";
             case ScreenOverlay::VectorDisplay:
                 return "Vector Display";
+            case ScreenOverlay::Transparent:
+                return "Transparent";
 #endif
             default:
                 return "Unknown";
@@ -58,6 +61,8 @@ public:
             unnormalisedValue = (int)ScreenOverlay::Real;
         } else if (text == "Vector Display") {
             unnormalisedValue = (int)ScreenOverlay::VectorDisplay;
+        } else if (text == "Transparent") {
+            unnormalisedValue = (int)ScreenOverlay::Transparent;
 #endif
         } else {
             unnormalisedValue = (int)ScreenOverlay::Empty;
@@ -82,6 +87,19 @@ public:
         return isRealisticDisplay((ScreenOverlay)(int)getValueUnnormalised());
     }
 #endif
+
+    static bool isTransparent(ScreenOverlay type) {
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+        return type == ScreenOverlay::Transparent;
+#else
+        juce::ignoreUnused(type);
+        return false;
+#endif
+    }
+
+    bool isTransparent() {
+        return isTransparent((ScreenOverlay)(int)getValueUnnormalised());
+    }
 };
 
 enum class TriggerSlope : int { Rising = 0, Falling = 1 };

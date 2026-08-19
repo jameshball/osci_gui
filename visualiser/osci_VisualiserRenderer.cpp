@@ -433,6 +433,7 @@ void VisualiserRenderer::drawFrame() {
 
     // The crop rectangle will be applied in drawTexture if it's set
     setShader(texturedShader.get());
+    texturedShader->setUniform("uPreserveAlpha", ScreenOverlayParameter::isTransparent(screenOverlay) ? 1.0f : 0.0f);
     drawTexture({renderTexture});
 }
 
@@ -475,6 +476,7 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     texturedShader->use();
     texturedShader->setUniform("uCropEnabled", 0.0f);
     texturedShader->setUniform("uCropRect", 0.0f, 0.0f, 1.0f, 1.0f);
+    texturedShader->setUniform("uPreserveAlpha", 0.0f);
 
     blurShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     blurShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(blurVertexShader));
@@ -604,7 +606,8 @@ void VisualiserRenderer::renderOpenGL() {
             juce::Logger::writeToLog(diagMsg);
         }
 
-        juce::OpenGLHelpers::clear(visualiserScreenBaseColour());
+        const bool transparent = ScreenOverlayParameter::isTransparent(getEffectiveScreenOverlay());
+        juce::OpenGLHelpers::clear(transparent ? juce::Colours::transparentBlack : visualiserScreenBaseColour());
 
         // Mirror mode: display the parent's captured frame
         auto* source = mirrorSource.load();
@@ -660,6 +663,7 @@ void VisualiserRenderer::renderOpenGL() {
             setShader(texturedShader.get());
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
             texturedShader->setUniform("uCropEnabled", 0.0f);
+            texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
 
             Texture mirrorTex { mirrorTexture, w, h };
             targetTexture = std::nullopt;
@@ -694,6 +698,7 @@ void VisualiserRenderer::renderOpenGL() {
         // render texture to screen
         activateTargetTexture(std::nullopt);
         setShader(texturedShader.get());
+        texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
         drawTexture({renderTexture});
         drawPresentationFadeOverlay();
 
@@ -843,7 +848,7 @@ Texture VisualiserRenderer::makeTexture(int width, int height, GLuint textureID)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    float borderColor[] = {0.0f, 0.0f, 0.0f, 0.0f};
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureID, 0);
@@ -1132,6 +1137,7 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
 
     lineShader->setUniform("uFadeAmount", fadeAmount);
     lineShader->setUniform("uNEdges", (GLfloat)nEdges);
+    lineShader->setUniform("uTransparent", ScreenOverlayParameter::isTransparent(screenOverlay) ? 1.0f : 0.0f);
     const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
     lineShader->setUniform("uWorldToClipScale", worldToClipScale.x, worldToClipScale.y);
     setOffsetAndScale(lineShader.get());
@@ -1163,11 +1169,20 @@ void VisualiserRenderer::fade() {
     setNormalBlending();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    const bool transparent = ScreenOverlayParameter::isTransparent(screenOverlay);
+    if (transparent) {
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+    }
+
     setShader(afterglowShader.get());
     afterglowShader->setUniform("fadeAmount", fadeAmount);
     afterglowShader->setUniform("afterglowAmount", (float)parameters.getAfterglow());
     afterglowShader->setUniform("uResizeForCanvas", lineTexture.width / renderTexture.width);
     drawTexture({lineTexture});
+
+    if (transparent) {
+        setNormalBlending();
+    }
 #else
     simpleShader->use();
     glEnableVertexAttribArray(glGetAttribLocation(simpleShader->getProgramID(), "vertexPosition"));
@@ -1209,6 +1224,9 @@ void VisualiserRenderer::drawCRT() {
     using namespace juce::gl;
 
     setNormalBlending();
+
+    texturedShader->use();
+    texturedShader->setUniform("uPreserveAlpha", 0.0f);
 
     activateTargetTexture(blur1Texture);
     setShader(texturedShader.get());
@@ -1261,6 +1279,12 @@ void VisualiserRenderer::drawCRT() {
 #endif
 
     activateTargetTexture(renderTexture);
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    const bool transparent = ScreenOverlayParameter::isTransparent(screenOverlay);
+    if (transparent) {
+        glDisable(GL_BLEND);
+    }
+#endif
     setShader(outputShader.get());
     // Lower exposure slightly for RGB pipeline (previous mono calibration was higher)
     outputShader->setUniform("uExposure", 0.18f);
@@ -1286,9 +1310,11 @@ void VisualiserRenderer::drawCRT() {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     outputShader->setUniform("uFishEye", screenOverlay == ScreenOverlay::VectorDisplay ? VECTOR_DISPLAY_FISH_EYE : 0.0f);
     outputShader->setUniform("uRealScreen", ScreenOverlayParameter::isRealisticDisplay(screenOverlay) ? 1.0f : 0.0f);
+    outputShader->setUniform("uTransparent", transparent ? 1.0f : 0.0f);
 #else
     outputShader->setUniform("uFishEye", 0.0f);
     outputShader->setUniform("uRealScreen", 0.0f);
+    outputShader->setUniform("uTransparent", 0.0f);
 #endif
     outputShader->setUniform("uResizeForCanvas", lineTexture.width / (float) renderTexture.width);
     // Colour uniform removed: line texture already encodes RGB
@@ -1302,6 +1328,11 @@ void VisualiserRenderer::drawCRT() {
         glowTexture,
 #endif
     });
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    if (transparent) {
+        glEnable(GL_BLEND);
+    }
+#endif
     checkGLErrors(__FILE__, __LINE__);
 }
 
