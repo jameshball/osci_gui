@@ -218,12 +218,7 @@ private:
         MirrorTimer(VisualiserRenderer& o) : owner(o) {}
         void timerCallback() override {
             if (owner.softwareMirrorEnabled) {
-                auto* topLevel = owner.getTopLevelComponent();
-                if (topLevel != nullptr) {
-                    topLevel->repaint();
-                } else {
-                    owner.repaint();
-                }
+                owner.repaint();
             } else {
                 owner.openGLContext.triggerRepaint();
             }
