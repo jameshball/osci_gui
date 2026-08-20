@@ -55,9 +55,6 @@ public:
     void setFrameRate(double frameRate);
     void setPresentationFadeAlpha(float alpha);
     void setNativeTransparencySupported(bool supported) { nativeTransparencySupported.store(supported); }
-    void setSoftwareMirrorEnabled(bool enabled);
-    bool isSoftwareMirrorEnabled() const { return softwareMirrorEnabled; }
-    bool paintSoftwareMirrorFrame(juce::Graphics& g, juce::Rectangle<int> bounds);
     void setAssets(VisualiserRendererAssets assets);
     // Render mode can be changed from the message thread at any time
     void setRenderMode(RenderMode mode) { renderMode.store(mode); }
@@ -68,12 +65,12 @@ public:
     VisualiserRenderSize getRenderSize() const { return {renderTexture.width, renderTexture.height}; }
     Texture getRenderTexture() const { return renderTexture; }
 
-    // Mirror mode: child displays parent's rendered frame instead of its own pipeline
+    // Mirror mode: child renders the parent's processed sample data in its own GL context.
     void setMirrorSource(VisualiserRenderer* source) {
         mirrorSource.store(source);
         if (source != nullptr) {
             setShouldBeRunning(false);
-            openGLContext.setContinuousRepainting(!softwareMirrorEnabled);
+            openGLContext.setContinuousRepainting(false);
             mirrorTimer = std::make_unique<MirrorTimer>(*this);
             mirrorTimer->startTimerHz(60);
         } else {
@@ -81,10 +78,10 @@ public:
             openGLContext.setContinuousRepainting(false);
         }
     }
-    void setHasMirrorConsumer(bool has) { hasMirrorConsumer.store(has); }
     bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
-    VisualiserRenderSize getCapturedFrameSize();
-    bool capturedFrameHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
+    void setAlphaMaskCaptureEnabled(bool enabled) { alphaMaskCaptureEnabled.store(enabled); }
+    VisualiserRenderSize getAlphaMaskSize();
+    bool alphaMaskHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
 
     void getFrame(std::vector<unsigned char>& frame);
     void drawFrame();    juce::Rectangle<int> getViewportArea() const { return viewportArea; }
@@ -199,29 +196,26 @@ private:
 
     // Mirror mode state
     std::atomic<VisualiserRenderer*> mirrorSource{nullptr};
-    std::atomic<bool> hasMirrorConsumer{false};
-    std::vector<unsigned char> capturedPixels;
-    int capturedWidth = 0;
-    int capturedHeight = 0;
-    juce::SpinLock capturedPixelsLock;
-    GLuint mirrorTexture = 0;
-    int mirrorTextureWidth = 0;
-    int mirrorTextureHeight = 0;
-    std::vector<unsigned char> mirrorPixelBuffer; // child's local copy to avoid allocation under lock
-    std::vector<unsigned char> captureReadbackBuffer; // parent's local readback buffer (no lock needed)
-    juce::Image softwareMirrorImage;
-    bool softwareMirrorEnabled = false;
+    int mirrorSampleBufferCount = -1;
+    std::vector<float> mirrorXSamples;
+    std::vector<float> mirrorYSamples;
+    std::vector<float> mirrorZSamples;
+    std::vector<float> mirrorRSamples;
+    std::vector<float> mirrorGSamples;
+    std::vector<float> mirrorBSamples;
+    Texture alphaMaskTexture;
+    std::atomic<bool> alphaMaskCaptureEnabled{false};
+    std::vector<unsigned char> alphaMaskPixels;
+    std::vector<unsigned char> alphaMaskReadbackBuffer;
+    juce::SpinLock alphaMaskLock;
+    static constexpr int alphaMaskResolution = 64;
 
     // Timer to drive the child's GL rendering independently of the audio thread
     struct MirrorTimer : public juce::Timer {
         VisualiserRenderer& owner;
         MirrorTimer(VisualiserRenderer& o) : owner(o) {}
         void timerCallback() override {
-            if (owner.softwareMirrorEnabled) {
-                owner.repaint();
-            } else {
-                owner.openGLContext.triggerRepaint();
-            }
+            owner.openGLContext.triggerRepaint();
         }
     };
     std::unique_ptr<MirrorTimer> mirrorTimer;
@@ -279,6 +273,7 @@ private:
     void fade();
     void drawCRT();
     void drawPresentationFadeOverlay();
+    void captureAlphaMask();
     void checkGLErrors(juce::String file, int line);
     void viewportChanged(juce::Rectangle<int> area);
 

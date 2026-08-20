@@ -428,94 +428,24 @@ void VisualiserRenderer::getFrame(std::vector<unsigned char>& frame) {
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame.data());
 }
 
-VisualiserRenderSize VisualiserRenderer::getCapturedFrameSize() {
-    juce::SpinLock::ScopedLockType lock(capturedPixelsLock);
-    if (capturedPixels.empty()) {
+VisualiserRenderSize VisualiserRenderer::getAlphaMaskSize() {
+    juce::SpinLock::ScopedLockType lock(alphaMaskLock);
+    if (alphaMaskPixels.empty()) {
         return {0, 0};
     }
-    return {capturedWidth, capturedHeight};
+    return {alphaMaskResolution, alphaMaskResolution};
 }
 
-bool VisualiserRenderer::capturedFrameHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius,
-                                                   std::uint8_t threshold) {
-    juce::SpinLock::ScopedLockType lock(capturedPixelsLock);
-    if (capturedWidth <= 0 || capturedHeight <= 0) {
+bool VisualiserRenderer::alphaMaskHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius,
+                                               std::uint8_t threshold) {
+    juce::SpinLock::ScopedLockType lock(alphaMaskLock);
+    constexpr auto requiredSize = static_cast<std::size_t>(alphaMaskResolution * alphaMaskResolution * 4);
+    if (alphaMaskPixels.size() < requiredSize) {
         return false;
     }
-    const auto requiredSize = static_cast<std::size_t>(capturedWidth) * static_cast<std::size_t>(capturedHeight) * 4u;
-    if (capturedPixels.size() < requiredSize) {
-        return false;
-    }
-    return osci::popoutAlphaHitTest(capturedPixels.data(), capturedWidth, capturedHeight, normalisedPoint.x, normalisedPoint.y,
+    return osci::popoutAlphaHitTest(alphaMaskPixels.data(), alphaMaskResolution, alphaMaskResolution,
+                                    normalisedPoint.x, normalisedPoint.y,
                                     normalisedRadius.x, normalisedRadius.y, threshold);
-}
-
-void VisualiserRenderer::setSoftwareMirrorEnabled(bool enabled) {
-    jassert(mirrorSource.load() == nullptr);
-    if (softwareMirrorEnabled == enabled) {
-        return;
-    }
-    softwareMirrorEnabled = enabled;
-    if (enabled) {
-        openGLContext.detach();
-    } else {
-        openGLContext.attachTo(*this);
-    }
-}
-
-bool VisualiserRenderer::paintSoftwareMirrorFrame(juce::Graphics& g, juce::Rectangle<int> bounds) {
-    auto* source = mirrorSource.load();
-    if (!softwareMirrorEnabled || source == nullptr || bounds.isEmpty()) {
-        return false;
-    }
-
-    VisualiserRenderSize frameSize;
-    {
-        juce::SpinLock::ScopedLockType lock(source->capturedPixelsLock);
-        frameSize = {source->capturedWidth, source->capturedHeight};
-    }
-    if (frameSize.width <= 0 || frameSize.height <= 0) {
-        return false;
-    }
-
-    const auto requiredSize = static_cast<std::size_t>(frameSize.width) * static_cast<std::size_t>(frameSize.height) * 4u;
-    if (mirrorPixelBuffer.size() != requiredSize) {
-        mirrorPixelBuffer.resize(requiredSize);
-    }
-    {
-        juce::SpinLock::ScopedLockType lock(source->capturedPixelsLock);
-        if (source->capturedWidth != frameSize.width || source->capturedHeight != frameSize.height
-            || source->capturedPixels.size() < requiredSize) {
-            return false;
-        }
-        std::copy_n(source->capturedPixels.data(), requiredSize, mirrorPixelBuffer.data());
-    }
-
-    if (softwareMirrorImage.isNull() || softwareMirrorImage.getWidth() != frameSize.width
-        || softwareMirrorImage.getHeight() != frameSize.height) {
-        softwareMirrorImage = juce::Image(juce::Image::ARGB, frameSize.width, frameSize.height, true);
-    }
-
-    {
-        juce::Image::BitmapData destination(softwareMirrorImage, juce::Image::BitmapData::writeOnly);
-        for (int y = 0; y < frameSize.height; ++y) {
-            auto* destinationPixel = reinterpret_cast<juce::PixelARGB*>(destination.getLinePointer(y));
-            const auto* sourcePixel = mirrorPixelBuffer.data()
-                                    + static_cast<std::size_t>(frameSize.height - 1 - y)
-                                          * static_cast<std::size_t>(frameSize.width) * 4u;
-            for (int x = 0; x < frameSize.width; ++x) {
-                const auto offset = static_cast<std::size_t>(x) * 4u;
-                const auto alpha = parameters.isTransparentBackgroundEnabled()
-                                     ? juce::jmax(sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u])
-                                     : static_cast<std::uint8_t>(255);
-                destinationPixel[x].setARGB(alpha, sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u]);
-                destinationPixel[x].premultiply();
-            }
-        }
-    }
-
-    drawImageAspectFit(g, softwareMirrorImage, bounds);
-    return true;
 }
 
 void VisualiserRenderer::drawFrame() {
@@ -526,6 +456,27 @@ void VisualiserRenderer::drawFrame() {
     texturedShader->setUniform("uPreserveAlpha", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
     texturedShader->setUniform("uCheckerboardBackground", 0.0f);
     drawTexture({renderTexture});
+}
+
+void VisualiserRenderer::captureAlphaMask() {
+    using namespace juce::gl;
+
+    activateTargetTexture(alphaMaskTexture);
+    juce::OpenGLHelpers::clear(juce::Colours::transparentBlack);
+    setNormalBlending();
+    setShader(texturedShader.get());
+    texturedShader->setUniform("uResizeForCanvas", 1.0f);
+    texturedShader->setUniform("uPreserveAlpha", 1.0f);
+    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
+    drawTexture({renderTexture});
+    glReadPixels(0, 0, alphaMaskResolution, alphaMaskResolution, GL_RGBA, GL_UNSIGNED_BYTE,
+                 alphaMaskReadbackBuffer.data());
+
+    {
+        juce::SpinLock::ScopedLockType lock(alphaMaskLock);
+        std::swap(alphaMaskPixels, alphaMaskReadbackBuffer);
+    }
+    activateTargetTexture(std::nullopt);
 }
 
 void VisualiserRenderer::newOpenGLContextCreated() {
@@ -607,11 +558,6 @@ void VisualiserRenderer::newOpenGLContextCreated() {
 void VisualiserRenderer::openGLContextClosing() {
     using namespace juce::gl;
 
-    if (mirrorTexture != 0) {
-        glDeleteTextures(1, &mirrorTexture);
-        mirrorTexture = 0;
-    }
-
     glDeleteBuffers(1, &quadIndexBuffer);
     glDeleteBuffers(1, &vertexIndexBuffer);
     glDeleteBuffers(1, &vertexBuffer);
@@ -623,6 +569,7 @@ void VisualiserRenderer::openGLContextClosing() {
     glDeleteTextures(1, &blur3Texture.id);
     glDeleteTextures(1, &blur4Texture.id);
     glDeleteTextures(1, &renderTexture.id);
+    glDeleteTextures(1, &alphaMaskTexture.id);
     screenOpenGLTexture.release();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
@@ -702,68 +649,34 @@ void VisualiserRenderer::renderOpenGL() {
         const bool showCheckerboard = transparent && !nativeTransparencySupported.load();
         juce::OpenGLHelpers::clear(transparent ? juce::Colours::transparentBlack : visualiserScreenBaseColour());
 
-        // Mirror mode: display the parent's captured frame
+        // Mirror mode: render the parent's processed samples in this GL context.
         auto* source = mirrorSource.load();
         if (source != nullptr) {
-            renderScale = (float)openGLContext.getRenderingScale();
-
-            // Use full component bounds (ignore toolbar) for mirror mode
-            float totalW = getWidth() * renderScale;
-            float totalH = getHeight() * renderScale;
-
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glViewport(0, 0, juce::roundToInt(totalW), juce::roundToInt(totalH));
-
-            int w = 0, h = 0;
-            {
-                juce::SpinLock::ScopedLockType lock(source->capturedPixelsLock);
-                if (source->capturedPixels.empty()) {
-                    return;
+            const int sourceBufferCount = source->sampleBufferCount.load();
+            if (sourceBufferCount != mirrorSampleBufferCount) {
+                {
+                    juce::CriticalSection::ScopedLockType lock(source->samplesLock);
+                    const bool upsampled = parameters.getUpsamplingEnabled();
+                    const auto& sourceX = upsampled ? source->smoothedXSamples : source->xSamples;
+                    const auto& sourceY = upsampled ? source->smoothedYSamples : source->ySamples;
+                    const auto& sourceZ = upsampled ? source->smoothedZSamples : source->zSamples;
+                    const auto& sourceR = upsampled ? source->smoothedRSamples : source->rSamples;
+                    const auto& sourceG = upsampled ? source->smoothedGSamples : source->gSamples;
+                    const auto& sourceB = upsampled ? source->smoothedBSamples : source->bSamples;
+                    mirrorXSamples.assign(sourceX.begin(), sourceX.end());
+                    mirrorYSamples.assign(sourceY.begin(), sourceY.end());
+                    mirrorZSamples.assign(sourceZ.begin(), sourceZ.end());
+                    mirrorRSamples.assign(sourceR.begin(), sourceR.end());
+                    mirrorGSamples.assign(sourceG.begin(), sourceG.end());
+                    mirrorBSamples.assign(sourceB.begin(), sourceB.end());
+                    renderMode.store(source->renderMode.load());
                 }
-                w = source->capturedWidth;
-                h = source->capturedHeight;
-                mirrorPixelBuffer.assign(source->capturedPixels.begin(), source->capturedPixels.end());
-            }
 
-            // Create or re-use mirror texture in OUR GL context
-            if (mirrorTexture == 0) {
-                glGenTextures(1, &mirrorTexture);
-                glBindTexture(GL_TEXTURE_2D, mirrorTexture);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, mirrorPixelBuffer.data());
-                mirrorTextureWidth = w;
-                mirrorTextureHeight = h;
-            } else {
-                glBindTexture(GL_TEXTURE_2D, mirrorTexture);
-                if (w == mirrorTextureWidth && h == mirrorTextureHeight) {
-                    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, mirrorPixelBuffer.data());
-                } else {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, mirrorPixelBuffer.data());
-                    mirrorTextureWidth = w;
-                    mirrorTextureHeight = h;
+                if (!mirrorXSamples.empty()) {
+                    renderScope(mirrorXSamples, mirrorYSamples, mirrorRSamples, mirrorGSamples, mirrorBSamples);
                 }
+                mirrorSampleBufferCount = sourceBufferCount;
             }
-
-            // Centered aspect-fit viewport using full component size (not viewportArea)
-            const auto fitted = VisualiserGeometry::getAspectFitBounds(
-                juce::Rectangle<int>(0, 0, juce::roundToInt(totalW), juce::roundToInt(totalH)),
-                VisualiserGeometry::sanitiseRenderSize(w, h));
-            glViewport(fitted.getX(), fitted.getY(), fitted.getWidth(), fitted.getHeight());
-
-            setShader(texturedShader.get());
-            texturedShader->setUniform("uResizeForCanvas", 1.0f);
-            texturedShader->setUniform("uCropEnabled", 0.0f);
-            texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
-            texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
-
-            Texture mirrorTex { mirrorTexture, w, h };
-            targetTexture = std::nullopt;
-            drawTexture({ mirrorTex });
-            drawPresentationFadeOverlay();
-            return;
         }
 
         // we have a new buffer to render
@@ -797,28 +710,8 @@ void VisualiserRenderer::renderOpenGL() {
         drawTexture({renderTexture});
         drawPresentationFadeOverlay();
 
-        // Capture frame for mirror consumer (child window)
-        if (hasMirrorConsumer.load()) {
-            int w = renderTexture.width;
-            int h = renderTexture.height;
-            size_t numBytes = (size_t)w * h * 4;
-
-            // Read pixels into a local buffer (outside lock) to avoid stalling the child
-            if (captureReadbackBuffer.size() != numBytes)
-                captureReadbackBuffer.resize(numBytes);
-
-            glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTexture.id, 0);
-            glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, captureReadbackBuffer.data());
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-            // Brief lock to swap data to the shared buffer
-            {
-                juce::SpinLock::ScopedLockType lock(capturedPixelsLock);
-                std::swap(capturedPixels, captureReadbackBuffer);
-                capturedWidth = w;
-                capturedHeight = h;
-            }
+        if (alphaMaskCaptureEnabled.load()) {
+            captureAlphaMask();
         }
     }
 }
@@ -900,6 +793,9 @@ void VisualiserRenderer::setupTextures(VisualiserRenderSize size) {
     // Create the framebuffer
     glGenFramebuffers(1, &frameBuffer);
     allocateRenderTextures(size, false);
+    alphaMaskTexture = makeTexture(alphaMaskResolution, alphaMaskResolution);
+    alphaMaskPixels.resize(static_cast<std::size_t>(alphaMaskResolution * alphaMaskResolution * 4));
+    alphaMaskReadbackBuffer.resize(static_cast<std::size_t>(alphaMaskResolution * alphaMaskResolution * 4));
 }
 
 void VisualiserRenderer::resizeRenderTextures(VisualiserRenderSize size) {
@@ -997,7 +893,11 @@ void VisualiserRenderer::drawLineTexture(const std::vector<float> &xPoints, cons
     const std::vector<float>* brightness = nullptr;
     auto mode = renderMode.load();
     if (mode == RenderMode::XYZ) {
-        brightness = parameters.getUpsamplingEnabled() ? &smoothedZSamples : &zSamples;
+        if (isMirrorMode()) {
+            brightness = &mirrorZSamples;
+        } else {
+            brightness = parameters.getUpsamplingEnabled() ? &smoothedZSamples : &zSamples;
+        }
     }
     drawLine(xPoints, yPoints, brightness, rPoints, gPoints, bPoints, renderMode.load());
     glBindTexture(GL_TEXTURE_2D, targetTexture.value().id);
