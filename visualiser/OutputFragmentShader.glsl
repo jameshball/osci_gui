@@ -19,6 +19,8 @@ uniform float uFishEye;
 uniform float uRealScreen;
 uniform float uHueShift;
 uniform float uTransparent;
+uniform float uShowGraticule;
+uniform float uUseScreenScatter;
 uniform vec2 uOffset;
 uniform vec2 uScale;
 // uColour removed; line texture already contains RGB
@@ -80,7 +82,11 @@ void main() {
     vec3 bloom;
     vec3 light;
     if (uTransparent > 0.5) {
-        bloom = glow * (tightGlow.rgb + scatter.rgb * 0.6);
+        float scatterScalar = 0.6;
+        if (uUseScreenScatter > 0.5) {
+            scatterScalar = 0.3 * (2.0 + screen.g + 0.5 * screen.r);
+        }
+        bloom = glow * (tightGlow.rgb + scatter.rgb * scatterScalar);
         light = line.rgb + bloom;
     } else {
         float scatterScalar = 0.3 * (2.0 + 1.0 * screen.g + 0.5 * screen.r);
@@ -100,6 +106,11 @@ void main() {
     vec3 colorOut = mix(baseCol, vec3(1.0), whiteMix) * s;
     gl_FragColor.rgb = desaturate(colorOut, 1.0 - uLineSaturation);
     if (uTransparent > 0.5) {
+        if (uShowGraticule > 0.5) {
+            float gridMask = clamp(1.0 - screen.a, 0.0, 1.0);
+            vec3 gridColour = hueShift(uBeamColor, uHueShift) * gridMask * 0.12;
+            gl_FragColor.rgb = max(gl_FragColor.rgb, gridColour);
+        }
         gl_FragColor.a = clamp(max(gl_FragColor.r, max(gl_FragColor.g, gl_FragColor.b)), 0.0, 1.0);
         return;
     }

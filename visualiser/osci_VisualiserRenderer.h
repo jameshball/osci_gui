@@ -7,6 +7,7 @@
 #include "osci_VisualiserRendererConfig.h"
 #include "osci_VisualiserGeometry.h"
 #include "osci_VisualiserParameters.h"
+#include "osci_PopoutAlphaHitTest.h"
 
 struct Texture {
     GLuint id = 0;
@@ -53,6 +54,7 @@ public:
     void setResolution(int resolution) { setRenderSize({resolution, resolution}); }
     void setFrameRate(double frameRate);
     void setPresentationFadeAlpha(float alpha);
+    void setNativeTransparencySupported(bool supported) { nativeTransparencySupported.store(supported); }
     void setAssets(VisualiserRendererAssets assets);
     // Render mode can be changed from the message thread at any time
     void setRenderMode(RenderMode mode) { renderMode.store(mode); }
@@ -78,6 +80,8 @@ public:
     }
     void setHasMirrorConsumer(bool has) { hasMirrorConsumer.store(has); }
     bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
+    VisualiserRenderSize getCapturedFrameSize();
+    bool capturedFrameHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
 
     void getFrame(std::vector<unsigned char>& frame);
     void drawFrame();    juce::Rectangle<int> getViewportArea() const { return viewportArea; }
@@ -140,6 +144,7 @@ private:
     // to be applied on the next renderOpenGL invocation.
     std::atomic<std::uint64_t> pendingRenderSize = 0;
     std::atomic<float> presentationFadeAlpha = 0.0f;
+    std::atomic<bool> nativeTransparencySupported{false};
     int prevSampleBufferCount = 0;
     long lastTriggerPosition = 0;
 

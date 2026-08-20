@@ -428,12 +428,35 @@ void VisualiserRenderer::getFrame(std::vector<unsigned char>& frame) {
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame.data());
 }
 
+VisualiserRenderSize VisualiserRenderer::getCapturedFrameSize() {
+    juce::SpinLock::ScopedLockType lock(capturedPixelsLock);
+    if (capturedPixels.empty()) {
+        return {0, 0};
+    }
+    return {capturedWidth, capturedHeight};
+}
+
+bool VisualiserRenderer::capturedFrameHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius,
+                                                   std::uint8_t threshold) {
+    juce::SpinLock::ScopedLockType lock(capturedPixelsLock);
+    if (capturedWidth <= 0 || capturedHeight <= 0) {
+        return false;
+    }
+    const auto requiredSize = static_cast<std::size_t>(capturedWidth) * static_cast<std::size_t>(capturedHeight) * 4u;
+    if (capturedPixels.size() < requiredSize) {
+        return false;
+    }
+    return osci::popoutAlphaHitTest(capturedPixels.data(), capturedWidth, capturedHeight, normalisedPoint.x, normalisedPoint.y,
+                                    normalisedRadius.x, normalisedRadius.y, threshold);
+}
+
 void VisualiserRenderer::drawFrame() {
     using namespace juce::gl;
 
     // The crop rectangle will be applied in drawTexture if it's set
     setShader(texturedShader.get());
-    texturedShader->setUniform("uPreserveAlpha", ScreenOverlayParameter::isTransparent(screenOverlay) ? 1.0f : 0.0f);
+    texturedShader->setUniform("uPreserveAlpha", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
+    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
     drawTexture({renderTexture});
 }
 
@@ -477,6 +500,7 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     texturedShader->setUniform("uCropEnabled", 0.0f);
     texturedShader->setUniform("uCropRect", 0.0f, 0.0f, 1.0f, 1.0f);
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
+    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
 
     blurShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     blurShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(blurVertexShader));
@@ -606,7 +630,8 @@ void VisualiserRenderer::renderOpenGL() {
             juce::Logger::writeToLog(diagMsg);
         }
 
-        const bool transparent = ScreenOverlayParameter::isTransparent(getEffectiveScreenOverlay());
+        const bool transparent = parameters.isTransparentBackgroundEnabled();
+        const bool showCheckerboard = transparent && !nativeTransparencySupported.load();
         juce::OpenGLHelpers::clear(transparent ? juce::Colours::transparentBlack : visualiserScreenBaseColour());
 
         // Mirror mode: display the parent's captured frame
@@ -664,6 +689,7 @@ void VisualiserRenderer::renderOpenGL() {
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
             texturedShader->setUniform("uCropEnabled", 0.0f);
             texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
+            texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
 
             Texture mirrorTex { mirrorTexture, w, h };
             targetTexture = std::nullopt;
@@ -699,6 +725,7 @@ void VisualiserRenderer::renderOpenGL() {
         activateTargetTexture(std::nullopt);
         setShader(texturedShader.get());
         texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
+        texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
         drawTexture({renderTexture});
         drawPresentationFadeOverlay();
 
@@ -1137,7 +1164,7 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
 
     lineShader->setUniform("uFadeAmount", fadeAmount);
     lineShader->setUniform("uNEdges", (GLfloat)nEdges);
-    lineShader->setUniform("uTransparent", ScreenOverlayParameter::isTransparent(screenOverlay) ? 1.0f : 0.0f);
+    lineShader->setUniform("uTransparent", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
     const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
     lineShader->setUniform("uWorldToClipScale", worldToClipScale.x, worldToClipScale.y);
     setOffsetAndScale(lineShader.get());
@@ -1169,7 +1196,7 @@ void VisualiserRenderer::fade() {
     setNormalBlending();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    const bool transparent = ScreenOverlayParameter::isTransparent(screenOverlay);
+    const bool transparent = parameters.isTransparentBackgroundEnabled();
     if (transparent) {
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
     }
@@ -1227,6 +1254,7 @@ void VisualiserRenderer::drawCRT() {
 
     texturedShader->use();
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
+    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
 
     activateTargetTexture(blur1Texture);
     setShader(texturedShader.get());
@@ -1280,7 +1308,7 @@ void VisualiserRenderer::drawCRT() {
 
     activateTargetTexture(renderTexture);
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    const bool transparent = ScreenOverlayParameter::isTransparent(screenOverlay);
+    const bool transparent = parameters.isTransparentBackgroundEnabled();
     if (transparent) {
         glDisable(GL_BLEND);
     }
@@ -1311,10 +1339,14 @@ void VisualiserRenderer::drawCRT() {
     outputShader->setUniform("uFishEye", screenOverlay == ScreenOverlay::VectorDisplay ? VECTOR_DISPLAY_FISH_EYE : 0.0f);
     outputShader->setUniform("uRealScreen", ScreenOverlayParameter::isRealisticDisplay(screenOverlay) ? 1.0f : 0.0f);
     outputShader->setUniform("uTransparent", transparent ? 1.0f : 0.0f);
+    outputShader->setUniform("uShowGraticule", screenOverlay == ScreenOverlay::Graticule || screenOverlay == ScreenOverlay::SmudgedGraticule ? 1.0f : 0.0f);
+    outputShader->setUniform("uUseScreenScatter", screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule ? 1.0f : 0.0f);
 #else
     outputShader->setUniform("uFishEye", 0.0f);
     outputShader->setUniform("uRealScreen", 0.0f);
     outputShader->setUniform("uTransparent", 0.0f);
+    outputShader->setUniform("uShowGraticule", 0.0f);
+    outputShader->setUniform("uUseScreenScatter", 0.0f);
 #endif
     outputShader->setUniform("uResizeForCanvas", lineTexture.width / (float) renderTexture.width);
     // Colour uniform removed: line texture already encodes RGB

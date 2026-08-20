@@ -12,8 +12,7 @@ enum class ScreenOverlay : int {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     Real = 5,
     VectorDisplay = 6,
-    Transparent = 7,
-    MAX = 7,
+    MAX = 6,
 #else
     MAX = 4,
 #endif
@@ -38,8 +37,6 @@ public:
                 return "Real Oscilloscope";
             case ScreenOverlay::VectorDisplay:
                 return "Vector Display";
-            case ScreenOverlay::Transparent:
-                return "Transparent";
 #endif
             default:
                 return "Unknown";
@@ -61,8 +58,6 @@ public:
             unnormalisedValue = (int)ScreenOverlay::Real;
         } else if (text == "Vector Display") {
             unnormalisedValue = (int)ScreenOverlay::VectorDisplay;
-        } else if (text == "Transparent") {
-            unnormalisedValue = (int)ScreenOverlay::Transparent;
 #endif
         } else {
             unnormalisedValue = (int)ScreenOverlay::Empty;
@@ -88,18 +83,6 @@ public:
     }
 #endif
 
-    static bool isTransparent(ScreenOverlay type) {
-#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-        return type == ScreenOverlay::Transparent;
-#else
-        juce::ignoreUnused(type);
-        return false;
-#endif
-    }
-
-    bool isTransparent() {
-        return isTransparent((ScreenOverlay)(int)getValueUnnormalised());
-    }
 };
 
 enum class TriggerSlope : int { Rising = 0, Falling = 1 };
@@ -143,6 +126,7 @@ public:
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         scaleEffect->markLockable(true);
         booleans.push_back(scaleEffect->linked);
+        booleans.push_back(transparentBackground);
 #endif
     }
 
@@ -200,7 +184,15 @@ public:
         return shutterSync->getBoolValue();
     }
 #endif
-    
+
+    bool isTransparentBackgroundEnabled() {
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+        return transparentBackground->getBoolValue();
+#else
+        return false;
+#endif
+    }
+
     double getFocus() {
         return 0.8 * focusEffect->getActualValue() / 100;
     }
@@ -271,6 +263,7 @@ public:
     TriggerSlopeParameter* triggerSlope = new TriggerSlopeParameter();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    osci::BooleanParameter* transparentBackground = new osci::BooleanParameter("Transparent Background", "transparentBackground", VERSION_HINT, false, "Makes the visualiser background transparent while preserving the selected screen overlay.");
     osci::BooleanParameter* flipVertical = new osci::BooleanParameter("Flip Vertical", "flipVertical", VERSION_HINT, false, "Flips the visualiser vertically.");
     osci::BooleanParameter* flipHorizontal = new osci::BooleanParameter("Flip Horizontal", "flipHorizontal", VERSION_HINT, false, "Flips the visualiser horizontally.");
     osci::BooleanParameter* goniometer = new osci::BooleanParameter("Goniometer", "goniometer", VERSION_HINT, false, "Rotates the visualiser to replicate a goniometer display to show the phase relationship between two channels.");
