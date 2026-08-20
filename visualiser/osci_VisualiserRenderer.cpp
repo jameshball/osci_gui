@@ -496,19 +496,21 @@ bool VisualiserRenderer::paintSoftwareMirrorFrame(juce::Graphics& g, juce::Recta
         softwareMirrorImage = juce::Image(juce::Image::ARGB, frameSize.width, frameSize.height, true);
     }
 
-    juce::Image::BitmapData destination(softwareMirrorImage, juce::Image::BitmapData::writeOnly);
-    for (int y = 0; y < frameSize.height; ++y) {
-        auto* destinationPixel = reinterpret_cast<juce::PixelARGB*>(destination.getLinePointer(y));
-        const auto* sourcePixel = mirrorPixelBuffer.data()
-                                + static_cast<std::size_t>(frameSize.height - 1 - y)
-                                      * static_cast<std::size_t>(frameSize.width) * 4u;
-        for (int x = 0; x < frameSize.width; ++x) {
-            const auto offset = static_cast<std::size_t>(x) * 4u;
-            const auto alpha = parameters.isTransparentBackgroundEnabled()
-                                 ? juce::jmax(sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u])
-                                 : static_cast<std::uint8_t>(255);
-            destinationPixel[x].setARGB(alpha, sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u]);
-            destinationPixel[x].premultiply();
+    {
+        juce::Image::BitmapData destination(softwareMirrorImage, juce::Image::BitmapData::writeOnly);
+        for (int y = 0; y < frameSize.height; ++y) {
+            auto* destinationPixel = reinterpret_cast<juce::PixelARGB*>(destination.getLinePointer(y));
+            const auto* sourcePixel = mirrorPixelBuffer.data()
+                                    + static_cast<std::size_t>(frameSize.height - 1 - y)
+                                          * static_cast<std::size_t>(frameSize.width) * 4u;
+            for (int x = 0; x < frameSize.width; ++x) {
+                const auto offset = static_cast<std::size_t>(x) * 4u;
+                const auto alpha = parameters.isTransparentBackgroundEnabled()
+                                     ? juce::jmax(sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u])
+                                     : static_cast<std::uint8_t>(255);
+                destinationPixel[x].setARGB(alpha, sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u]);
+                destinationPixel[x].premultiply();
+            }
         }
     }
 
