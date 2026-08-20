@@ -65,19 +65,8 @@ public:
     VisualiserRenderSize getRenderSize() const { return {renderTexture.width, renderTexture.height}; }
     Texture getRenderTexture() const { return renderTexture; }
 
-    // Mirror mode: child renders the parent's processed sample data in its own GL context.
-    void setMirrorSource(VisualiserRenderer* source) {
-        mirrorSource.store(source);
-        if (source != nullptr) {
-            setShouldBeRunning(false);
-            openGLContext.setContinuousRepainting(false);
-            mirrorTimer = std::make_unique<MirrorTimer>(*this);
-            mirrorTimer->startTimerHz(60);
-        } else {
-            mirrorTimer.reset();
-            openGLContext.setContinuousRepainting(false);
-        }
-    }
+    // Mirror mode: child composites the parent's finished texture through a shared GL context.
+    void setMirrorSource(VisualiserRenderer* source);
     bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
     void setAlphaMaskCaptureEnabled(bool enabled) { alphaMaskCaptureEnabled.store(enabled); }
     VisualiserRenderSize getAlphaMaskSize();
@@ -196,18 +185,15 @@ private:
 
     // Mirror mode state
     std::atomic<VisualiserRenderer*> mirrorSource{nullptr};
-    int mirrorSampleBufferCount = -1;
-    std::vector<float> mirrorXSamples;
-    std::vector<float> mirrorYSamples;
-    std::vector<float> mirrorZSamples;
-    std::vector<float> mirrorRSamples;
-    std::vector<float> mirrorGSamples;
-    std::vector<float> mirrorBSamples;
+    std::atomic<bool> hasSharedMirrorConsumer{false};
+    void* sharedMirrorNativeContext = nullptr;
     Texture alphaMaskTexture;
     std::atomic<bool> alphaMaskCaptureEnabled{false};
     std::vector<unsigned char> alphaMaskPixels;
     std::vector<unsigned char> alphaMaskReadbackBuffer;
     juce::SpinLock alphaMaskLock;
+    int alphaMaskWidth = 0;
+    int alphaMaskHeight = 0;
     static constexpr int alphaMaskResolution = 64;
 
     // Timer to drive the child's GL rendering independently of the audio thread
@@ -215,7 +201,7 @@ private:
         VisualiserRenderer& owner;
         MirrorTimer(VisualiserRenderer& o) : owner(o) {}
         void timerCallback() override {
-            owner.openGLContext.triggerRepaint();
+            owner.updateMirrorContext();
         }
     };
     std::unique_ptr<MirrorTimer> mirrorTimer;
@@ -258,6 +244,7 @@ private:
     void setupArrays(int num_points);
     void setupTextures(VisualiserRenderSize size);
     void resizeRenderTextures(VisualiserRenderSize size);
+    void updateMirrorContext();
     void drawLineTexture(const std::vector<float>& xPoints, const std::vector<float>& yPoints,
                          const std::vector<float>& rPoints, const std::vector<float>& gPoints, const std::vector<float>& bPoints);
     void saveTextureToPNG(Texture texture, const juce::File& file);
@@ -273,7 +260,7 @@ private:
     void fade();
     void drawCRT();
     void drawPresentationFadeOverlay();
-    void captureAlphaMask();
+    void captureAlphaMask(Texture sourceTexture);
     void checkGLErrors(juce::String file, int line);
     void viewportChanged(juce::Rectangle<int> area);
 
