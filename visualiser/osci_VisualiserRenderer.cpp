@@ -504,8 +504,10 @@ bool VisualiserRenderer::paintSoftwareMirrorFrame(juce::Graphics& g, juce::Recta
                                       * static_cast<std::size_t>(frameSize.width) * 4u;
         for (int x = 0; x < frameSize.width; ++x) {
             const auto offset = static_cast<std::size_t>(x) * 4u;
-            destinationPixel[x].setARGB(sourcePixel[offset + 3u], sourcePixel[offset], sourcePixel[offset + 1u],
-                                        sourcePixel[offset + 2u]);
+            const auto alpha = parameters.isTransparentBackgroundEnabled()
+                                 ? juce::jmax(sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u])
+                                 : static_cast<std::uint8_t>(255);
+            destinationPixel[x].setARGB(alpha, sourcePixel[offset], sourcePixel[offset + 1u], sourcePixel[offset + 2u]);
             destinationPixel[x].premultiply();
         }
     }
