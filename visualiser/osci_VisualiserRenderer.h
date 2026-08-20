@@ -55,6 +55,9 @@ public:
     void setFrameRate(double frameRate);
     void setPresentationFadeAlpha(float alpha);
     void setNativeTransparencySupported(bool supported) { nativeTransparencySupported.store(supported); }
+    void setSoftwareMirrorEnabled(bool enabled);
+    bool isSoftwareMirrorEnabled() const { return softwareMirrorEnabled; }
+    bool paintSoftwareMirrorFrame(juce::Graphics& g, juce::Rectangle<int> bounds);
     void setAssets(VisualiserRendererAssets assets);
     // Render mode can be changed from the message thread at any time
     void setRenderMode(RenderMode mode) { renderMode.store(mode); }
@@ -70,7 +73,7 @@ public:
         mirrorSource.store(source);
         if (source != nullptr) {
             setShouldBeRunning(false);
-            openGLContext.setContinuousRepainting(true);
+            openGLContext.setContinuousRepainting(!softwareMirrorEnabled);
             mirrorTimer = std::make_unique<MirrorTimer>(*this);
             mirrorTimer->startTimerHz(60);
         } else {
@@ -206,12 +209,20 @@ private:
     int mirrorTextureHeight = 0;
     std::vector<unsigned char> mirrorPixelBuffer; // child's local copy to avoid allocation under lock
     std::vector<unsigned char> captureReadbackBuffer; // parent's local readback buffer (no lock needed)
+    juce::Image softwareMirrorImage;
+    bool softwareMirrorEnabled = false;
 
     // Timer to drive the child's GL rendering independently of the audio thread
     struct MirrorTimer : public juce::Timer {
         VisualiserRenderer& owner;
         MirrorTimer(VisualiserRenderer& o) : owner(o) {}
-        void timerCallback() override { owner.openGLContext.triggerRepaint(); }
+        void timerCallback() override {
+            if (owner.softwareMirrorEnabled) {
+                owner.repaint();
+            } else {
+                owner.openGLContext.triggerRepaint();
+            }
+        }
     };
     std::unique_ptr<MirrorTimer> mirrorTimer;
 

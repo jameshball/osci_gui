@@ -450,6 +450,70 @@ bool VisualiserRenderer::capturedFrameHasAlphaNear(juce::Point<float> normalised
                                     normalisedRadius.x, normalisedRadius.y, threshold);
 }
 
+void VisualiserRenderer::setSoftwareMirrorEnabled(bool enabled) {
+    jassert(mirrorSource.load() == nullptr);
+    if (softwareMirrorEnabled == enabled) {
+        return;
+    }
+    softwareMirrorEnabled = enabled;
+    if (enabled) {
+        openGLContext.detach();
+    } else {
+        openGLContext.attachTo(*this);
+    }
+}
+
+bool VisualiserRenderer::paintSoftwareMirrorFrame(juce::Graphics& g, juce::Rectangle<int> bounds) {
+    auto* source = mirrorSource.load();
+    if (!softwareMirrorEnabled || source == nullptr || bounds.isEmpty()) {
+        return false;
+    }
+
+    VisualiserRenderSize frameSize;
+    {
+        juce::SpinLock::ScopedLockType lock(source->capturedPixelsLock);
+        frameSize = {source->capturedWidth, source->capturedHeight};
+    }
+    if (frameSize.width <= 0 || frameSize.height <= 0) {
+        return false;
+    }
+
+    const auto requiredSize = static_cast<std::size_t>(frameSize.width) * static_cast<std::size_t>(frameSize.height) * 4u;
+    if (mirrorPixelBuffer.size() != requiredSize) {
+        mirrorPixelBuffer.resize(requiredSize);
+    }
+    {
+        juce::SpinLock::ScopedLockType lock(source->capturedPixelsLock);
+        if (source->capturedWidth != frameSize.width || source->capturedHeight != frameSize.height
+            || source->capturedPixels.size() < requiredSize) {
+            return false;
+        }
+        std::copy_n(source->capturedPixels.data(), requiredSize, mirrorPixelBuffer.data());
+    }
+
+    if (softwareMirrorImage.isNull() || softwareMirrorImage.getWidth() != frameSize.width
+        || softwareMirrorImage.getHeight() != frameSize.height) {
+        softwareMirrorImage = juce::Image(juce::Image::ARGB, frameSize.width, frameSize.height, true);
+    }
+
+    juce::Image::BitmapData destination(softwareMirrorImage, juce::Image::BitmapData::writeOnly);
+    for (int y = 0; y < frameSize.height; ++y) {
+        auto* destinationPixel = reinterpret_cast<juce::PixelARGB*>(destination.getLinePointer(y));
+        const auto* sourcePixel = mirrorPixelBuffer.data()
+                                + static_cast<std::size_t>(frameSize.height - 1 - y)
+                                      * static_cast<std::size_t>(frameSize.width) * 4u;
+        for (int x = 0; x < frameSize.width; ++x) {
+            const auto offset = static_cast<std::size_t>(x) * 4u;
+            destinationPixel[x].setARGB(sourcePixel[offset + 3u], sourcePixel[offset], sourcePixel[offset + 1u],
+                                        sourcePixel[offset + 2u]);
+            destinationPixel[x].premultiply();
+        }
+    }
+
+    drawImageAspectFit(g, softwareMirrorImage, bounds);
+    return true;
+}
+
 void VisualiserRenderer::drawFrame() {
     using namespace juce::gl;
 
