@@ -557,6 +557,7 @@ void VisualiserRenderer::drawFrame() {
     setShader(texturedShader.get());
     texturedShader->setUniform("uPreserveAlpha", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
     texturedShader->setUniform("uCheckerboardBackground", 0.0f);
+    texturedShader->setUniform("uPremultiplyAlpha", 0.0f);
     drawTexture({renderTexture});
 }
 
@@ -582,6 +583,7 @@ void VisualiserRenderer::captureAlphaMask(Texture sourceTexture) {
     texturedShader->setUniform("uResizeForCanvas", 1.0f);
     texturedShader->setUniform("uPreserveAlpha", 1.0f);
     texturedShader->setUniform("uCheckerboardBackground", 0.0f);
+    texturedShader->setUniform("uPremultiplyAlpha", 0.0f);
     drawTexture({sourceTexture});
     glEnable(GL_BLEND);
     setNormalBlending();
@@ -639,6 +641,7 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     texturedShader->setUniform("uCropRect", 0.0f, 0.0f, 1.0f, 1.0f);
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
     texturedShader->setUniform("uCheckerboardBackground", 0.0f);
+    texturedShader->setUniform("uPremultiplyAlpha", 0.0f);
 
     blurShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     blurShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(blurVertexShader));
@@ -825,6 +828,12 @@ void VisualiserRenderer::renderOpenGL() {
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
             texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
             texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
+#if JUCE_WINDOWS
+            const bool premultiplyAlpha = transparent && nativeTransparencySupported.load();
+#else
+            const bool premultiplyAlpha = false;
+#endif
+            texturedShader->setUniform("uPremultiplyAlpha", premultiplyAlpha ? 1.0f : 0.0f);
             drawTexture({outputTexture});
             glEnable(GL_BLEND);
             setNormalBlending();
@@ -1349,6 +1358,7 @@ void VisualiserRenderer::drawCRT() {
     texturedShader->use();
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
     texturedShader->setUniform("uCheckerboardBackground", 0.0f);
+    texturedShader->setUniform("uPremultiplyAlpha", 0.0f);
 
     activateTargetTexture(blur1Texture);
     setShader(texturedShader.get());

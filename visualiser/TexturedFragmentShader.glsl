@@ -5,6 +5,7 @@ varying vec2 vTexCoord;
 uniform float uCropEnabled;
 uniform float uPreserveAlpha;
 uniform float uCheckerboardBackground;
+uniform float uPremultiplyAlpha;
 
 void main() {
     gl_FragColor = texture2D(uTexture0, vTexCoord);
@@ -15,6 +16,9 @@ void main() {
         gl_FragColor.a = 1.0;
     } else if (uPreserveAlpha < 0.5) {
         gl_FragColor.a = 1.0;
+    }
+    if (uPremultiplyAlpha > 0.5) {
+        gl_FragColor.rgb *= gl_FragColor.a;
     }
 }
 
