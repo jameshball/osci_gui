@@ -187,6 +187,9 @@ private:
     std::atomic<VisualiserRenderer*> mirrorSource{nullptr};
     std::atomic<bool> hasSharedMirrorConsumer{false};
     void* sharedMirrorNativeContext = nullptr;
+    juce::SpinLock sharedMirrorTextureLock;
+    GLsync sharedMirrorWriteFence = nullptr;
+    GLsync sharedMirrorReadFence = nullptr;
     Texture alphaMaskTexture;
     std::atomic<bool> alphaMaskCaptureEnabled{false};
     std::vector<unsigned char> alphaMaskPixels;
@@ -245,6 +248,11 @@ private:
     void setupTextures(VisualiserRenderSize size);
     void resizeRenderTextures(VisualiserRenderSize size);
     void updateMirrorContext();
+    void waitForSharedMirrorWrite();
+    void publishSharedMirrorWrite();
+    void waitForSharedMirrorRead();
+    void publishSharedMirrorRead();
+    void clearSharedMirrorFences();
     void drawLineTexture(const std::vector<float>& xPoints, const std::vector<float>& yPoints,
                          const std::vector<float>& rPoints, const std::vector<float>& gPoints, const std::vector<float>& bPoints);
     void saveTextureToPNG(Texture texture, const juce::File& file);

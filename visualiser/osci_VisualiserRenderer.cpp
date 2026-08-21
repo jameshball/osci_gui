@@ -133,25 +133,24 @@ VisualiserRenderer::~VisualiserRenderer() {
     // safe defense-in-depth for direct VisualiserRenderer use or future subclasses.
     setShouldBeRunning(false, [this] { renderingSemaphore.release(); });
     auto* source = mirrorSource.exchange(nullptr);
-    if (source != nullptr) {
-        source->hasSharedMirrorConsumer.store(false);
-    }
     mirrorTimer.reset();
     openGLContext.detach();
     openGLContext.setNativeSharedContext(nullptr);
+    if (source != nullptr) {
+        source->hasSharedMirrorConsumer.store(false);
+    }
 }
 
 void VisualiserRenderer::setMirrorSource(VisualiserRenderer* source) {
     auto* previousSource = mirrorSource.exchange(source);
-    if (previousSource != nullptr) {
-        previousSource->hasSharedMirrorConsumer.store(false);
-    }
-
     mirrorTimer.reset();
     openGLContext.setContinuousRepainting(false);
     openGLContext.detach();
     openGLContext.setNativeSharedContext(nullptr);
     sharedMirrorNativeContext = nullptr;
+    if (previousSource != nullptr) {
+        previousSource->hasSharedMirrorConsumer.store(false);
+    }
     if (source == nullptr) {
         return;
     }
@@ -188,6 +187,55 @@ void VisualiserRenderer::updateMirrorContext() {
         openGLContext.attachTo(*this);
     }
     openGLContext.triggerRepaint();
+}
+
+void VisualiserRenderer::waitForSharedMirrorWrite() {
+    using namespace juce::gl;
+    if (sharedMirrorWriteFence != nullptr) {
+        glWaitSync(sharedMirrorWriteFence, 0, GL_TIMEOUT_IGNORED);
+        glDeleteSync(sharedMirrorWriteFence);
+        sharedMirrorWriteFence = nullptr;
+    }
+}
+
+void VisualiserRenderer::publishSharedMirrorWrite() {
+    using namespace juce::gl;
+    if (sharedMirrorWriteFence != nullptr) {
+        glDeleteSync(sharedMirrorWriteFence);
+    }
+    sharedMirrorWriteFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+}
+
+void VisualiserRenderer::waitForSharedMirrorRead() {
+    using namespace juce::gl;
+    if (sharedMirrorReadFence != nullptr) {
+        glWaitSync(sharedMirrorReadFence, 0, GL_TIMEOUT_IGNORED);
+        glDeleteSync(sharedMirrorReadFence);
+        sharedMirrorReadFence = nullptr;
+    }
+}
+
+void VisualiserRenderer::publishSharedMirrorRead() {
+    using namespace juce::gl;
+    if (sharedMirrorReadFence != nullptr) {
+        glDeleteSync(sharedMirrorReadFence);
+    }
+    sharedMirrorReadFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+}
+
+void VisualiserRenderer::clearSharedMirrorFences() {
+    using namespace juce::gl;
+    juce::SpinLock::ScopedLockType lock(sharedMirrorTextureLock);
+    if (sharedMirrorWriteFence != nullptr) {
+        glDeleteSync(sharedMirrorWriteFence);
+        sharedMirrorWriteFence = nullptr;
+    }
+    if (sharedMirrorReadFence != nullptr) {
+        glDeleteSync(sharedMirrorReadFence);
+        sharedMirrorReadFence = nullptr;
+    }
 }
 
 void VisualiserRenderer::setAssets(VisualiserRendererAssets newAssets) {
@@ -626,6 +674,7 @@ void VisualiserRenderer::newOpenGLContextCreated() {
 void VisualiserRenderer::openGLContextClosing() {
     using namespace juce::gl;
 
+    clearSharedMirrorFences();
     glDeleteBuffers(1, &quadIndexBuffer);
     glDeleteBuffers(1, &vertexIndexBuffer);
     glDeleteBuffers(1, &vertexBuffer);
@@ -662,6 +711,13 @@ void VisualiserRenderer::renderOpenGL() {
     using namespace juce::gl;
 
     if (openGLContext.isActive()) {
+        auto* source = mirrorSource.load();
+        std::optional<juce::SpinLock::ScopedLockType> sharedTextureWriteLock;
+        if (source == nullptr && hasSharedMirrorConsumer.load()) {
+            sharedTextureWriteLock.emplace(sharedMirrorTextureLock);
+            waitForSharedMirrorRead();
+        }
+
         const auto requestedPackedSize = pendingRenderSize.exchange(0);
         if (requestedPackedSize != 0) {
             resizeRenderTextures(VisualiserGeometry::unpackRenderSize(requestedPackedSize));
@@ -718,9 +774,6 @@ void VisualiserRenderer::renderOpenGL() {
         const bool clearToTransparent = transparent && nativeTransparencySupported.load();
         juce::OpenGLHelpers::clear(clearToTransparent ? juce::Colours::transparentBlack : visualiserScreenBaseColour());
 
-        // Mirror mode composites the exact texture produced by the parent context.
-        auto* source = mirrorSource.load();
-
         // we have a new buffer to render
         if (source == nullptr && sampleBufferCount != prevSampleBufferCount) {
             prevSampleBufferCount = sampleBufferCount;
@@ -741,33 +794,47 @@ void VisualiserRenderer::renderOpenGL() {
                 postRenderCallback();
             }
 
-            if (hasSharedMirrorConsumer.load()) {
-                glFlush();
+            if (sharedTextureWriteLock.has_value()) {
+                publishSharedMirrorWrite();
+                sharedTextureWriteLock.reset();
             }
-
             renderingSemaphore.release();
         }
 
-        // render texture to screen
-        activateTargetTexture(std::nullopt);
-        const Texture outputTexture = source != nullptr ? source->getRenderTexture() : renderTexture;
-        if (source != nullptr) {
-            renderScale = static_cast<float>(openGLContext.getRenderingScale());
-            const auto displayBounds = juce::Rectangle<int>(0, 0,
-                                                             juce::roundToInt(static_cast<float>(getWidth()) * renderScale),
-                                                             juce::roundToInt(static_cast<float>(getHeight()) * renderScale));
-            const auto fitted = VisualiserGeometry::getAspectFitBounds(displayBounds,
-                                                                        {outputTexture.width, outputTexture.height});
-            glViewport(fitted.getX(), fitted.getY(), fitted.getWidth(), fitted.getHeight());
+        if (sharedTextureWriteLock.has_value()) {
+            publishSharedMirrorWrite();
+            sharedTextureWriteLock.reset();
         }
-        setShader(texturedShader.get());
-        texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
-        texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
-        drawTexture({outputTexture});
-        drawPresentationFadeOverlay();
 
-        if (alphaMaskCaptureEnabled.load()) {
-            captureAlphaMask(outputTexture);
+        const auto drawOutputTexture = [this, transparent, showCheckerboard](Texture outputTexture, bool fitToComponent) {
+            activateTargetTexture(std::nullopt);
+            if (fitToComponent) {
+                renderScale = static_cast<float>(openGLContext.getRenderingScale());
+                const auto displayBounds = juce::Rectangle<int>(0, 0,
+                                                                 juce::roundToInt(static_cast<float>(getWidth()) * renderScale),
+                                                                 juce::roundToInt(static_cast<float>(getHeight()) * renderScale));
+                const auto fitted = VisualiserGeometry::getAspectFitBounds(displayBounds,
+                                                                            {outputTexture.width, outputTexture.height});
+                glViewport(fitted.getX(), fitted.getY(), fitted.getWidth(), fitted.getHeight());
+            }
+            setShader(texturedShader.get());
+            texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
+            texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
+            drawTexture({outputTexture});
+            drawPresentationFadeOverlay();
+
+            if (alphaMaskCaptureEnabled.load()) {
+                captureAlphaMask(outputTexture);
+            }
+        };
+
+        if (source != nullptr) {
+            juce::SpinLock::ScopedLockType lock(source->sharedMirrorTextureLock);
+            source->waitForSharedMirrorWrite();
+            drawOutputTexture(source->getRenderTexture(), true);
+            source->publishSharedMirrorRead();
+        } else {
+            drawOutputTexture(renderTexture, false);
         }
     }
 }
