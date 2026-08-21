@@ -577,12 +577,14 @@ void VisualiserRenderer::captureAlphaMask(Texture sourceTexture) {
 
     activateTargetTexture(alphaMaskTexture);
     juce::OpenGLHelpers::clear(juce::Colours::transparentBlack);
-    setNormalBlending();
+    glDisable(GL_BLEND);
     setShader(texturedShader.get());
     texturedShader->setUniform("uResizeForCanvas", 1.0f);
     texturedShader->setUniform("uPreserveAlpha", 1.0f);
     texturedShader->setUniform("uCheckerboardBackground", 0.0f);
     drawTexture({sourceTexture});
+    glEnable(GL_BLEND);
+    setNormalBlending();
     glReadPixels(0, 0, maskWidth, maskHeight, GL_RGBA, GL_UNSIGNED_BYTE,
                  alphaMaskReadbackBuffer.data());
 
@@ -818,10 +820,14 @@ void VisualiserRenderer::renderOpenGL() {
                                                                             {outputTexture.width, outputTexture.height});
                 glViewport(fitted.getX(), fitted.getY(), fitted.getWidth(), fitted.getHeight());
             }
+            glDisable(GL_BLEND);
             setShader(texturedShader.get());
+            texturedShader->setUniform("uResizeForCanvas", 1.0f);
             texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
             texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
             drawTexture({outputTexture});
+            glEnable(GL_BLEND);
+            setNormalBlending();
             drawPresentationFadeOverlay();
 
             if (alphaMaskCaptureEnabled.load()) {
