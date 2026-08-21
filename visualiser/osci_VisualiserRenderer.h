@@ -70,6 +70,7 @@ public:
     bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
     void setAlphaMaskCaptureEnabled(bool enabled) { alphaMaskCaptureEnabled.store(enabled); }
     VisualiserRenderSize getAlphaMaskSize();
+    std::uint64_t getAlphaMaskGeneration() const { return alphaMaskGeneration.load(); }
     bool alphaMaskHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
 
     void getFrame(std::vector<unsigned char>& frame);
@@ -197,6 +198,7 @@ private:
     juce::SpinLock alphaMaskLock;
     int alphaMaskWidth = 0;
     int alphaMaskHeight = 0;
+    std::atomic<std::uint64_t> alphaMaskGeneration{0};
     static constexpr int alphaMaskResolution = 64;
 
     // Timer to drive the child's GL rendering independently of the audio thread

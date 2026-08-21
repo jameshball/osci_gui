@@ -591,6 +591,7 @@ void VisualiserRenderer::captureAlphaMask(Texture sourceTexture) {
         std::swap(alphaMaskPixels, alphaMaskReadbackBuffer);
         alphaMaskWidth = maskWidth;
         alphaMaskHeight = maskHeight;
+        alphaMaskGeneration.fetch_add(1);
     }
     activateTargetTexture(std::nullopt);
 }
