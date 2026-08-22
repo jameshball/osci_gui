@@ -66,9 +66,13 @@ void GridItemComponent::paint (juce::Graphics& g) {
     } else {
         paintListItem (g, bounds, animationProgress);
     }
+}
+
+void GridItemComponent::paintOverChildren (juce::Graphics& g) {
+    const auto bounds = getLocalBounds().toFloat().reduced (10);
 
     if (! isEnabled()) {
-        g.setColour (Colours::invertedNeutral (0.35f));
+        g.setColour (Colours::invertedNeutral (0.55f));
         g.fillRoundedRectangle (bounds, cornerRadius);
     }
 
@@ -98,9 +102,9 @@ void GridItemComponent::paintListItem (juce::Graphics& g, juce::Rectangle<float>
     g.fillRoundedRectangle (bounds, cornerRadius);
 
     const auto outlineColour = description.isNotEmpty()
-        ? Colours::accentColor()
-        : Colours::outline();
-    g.setColour (outlineColour.withAlpha (description.isNotEmpty() ? 0.8f : 0.9f));
+        ? Colours::accentColor().withAlpha (0.8f)
+        : Colours::outline().withAlpha (0.4f);
+    g.setColour (outlineColour);
     g.drawRoundedRectangle (bounds, cornerRadius, 1.0f);
 
     auto textArea = bounds.reduced (10, 8);
@@ -143,8 +147,8 @@ void GridItemComponent::paintIconTile (juce::Graphics& g, juce::Rectangle<float>
     g.setColour (bg);
     g.fillPath (tilePath);
 
-    const auto outlineAlpha = selected ? 0.88f : 0.24f + animationProgress * 0.3f;
-    g.setColour ((selected ? Colours::accentColor() : Colours::outline()).withAlpha (outlineAlpha));
+    const auto outlineAlpha = selected ? 0.88f : 0.4f + animationProgress * 0.25f;
+    g.setColour ((selected ? Colours::accentColor() : Colours::text()).withAlpha (outlineAlpha));
     g.drawRoundedRectangle (bounds.reduced (0.5f), cornerRadius, selected ? 1.5f : 1.0f);
 
     auto content = bounds.reduced (20.0f, 18.0f);

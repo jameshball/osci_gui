@@ -21,6 +21,7 @@ public:
     ~GridItemComponent() override;
 
     void paint (juce::Graphics& g) override;
+    void paintOverChildren (juce::Graphics& g) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent& event) override;
     void mouseMove (const juce::MouseEvent& event) override;
