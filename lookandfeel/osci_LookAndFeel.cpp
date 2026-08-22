@@ -563,16 +563,7 @@ void LookAndFeel::drawMenuBarBackground(juce::Graphics& g, int width, int height
 }
 
 juce::TextLayout LookAndFeel::layoutTooltipText(const juce::String& text, juce::Colour colour) {
-    const float tooltipFontSize = 17.0f;
-    const int maxToolTipWidth = 600;
-
-    juce::AttributedString s;
-    s.setJustification (juce::Justification::centred);
-    s.append (text, juce::Font (tooltipFontSize, juce::Font::bold), colour);
-
-    juce::TextLayout tl;
-    tl.createLayoutWithBalancedLineLengths (s, (float) maxToolTipWidth);
-    return tl;
+    return LookAndFeelHelpers::layoutTooltipText(text, colour);
 }
 
 juce::Rectangle<int> LookAndFeel::getTooltipBounds (const juce::String& tipText, juce::Point<int> screenPos, juce::Rectangle<int> parentArea) {
@@ -588,10 +579,14 @@ juce::Rectangle<int> LookAndFeel::getTooltipBounds (const juce::String& tipText,
 }
 
 void LookAndFeel::drawTooltip(juce::Graphics& g, const juce::String& text, int width, int height) {
-    juce::Rectangle<int> bounds (width, height);
+    const auto bounds = juce::Rectangle<int>(width, height).toFloat();
+    constexpr auto cornerSize = 5.0f;
 
     g.setColour(findColour(juce::TooltipWindow::backgroundColourId));
-    g.fillRect(bounds);
+    g.fillRoundedRectangle(bounds, cornerSize);
+
+    g.setColour(findColour(juce::TooltipWindow::outlineColourId));
+    g.drawRoundedRectangle(bounds.reduced(0.5f), cornerSize, 1.0f);
 
     layoutTooltipText(text, findColour(juce::TooltipWindow::textColourId))
         .draw(g, {static_cast<float> (width), static_cast<float> (height)});
