@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <functional>
 #include <cstdint>
+#include <initializer_list>
 
 #include "osci_VisualiserRendererConfig.h"
 #include "osci_VisualiserGeometry.h"
@@ -68,8 +69,10 @@ public:
 
     // Mirror mode: child composites the parent's finished texture through a shared GL context.
     void setMirrorSource(VisualiserRenderer* source);
+    void setMirrorPresentationActive(bool active);
     bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
     void setAlphaMaskCaptureEnabled(bool enabled) { alphaMaskCaptureEnabled.store(enabled); }
+    void requestAlphaMaskRefresh() { alphaMaskRefreshRequested.store(true); }
     VisualiserRenderSize getAlphaMaskSize();
     std::uint64_t getAlphaMaskGeneration() const { return alphaMaskGeneration.load(); }
     bool alphaMaskHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
@@ -189,18 +192,22 @@ private:
     std::atomic<VisualiserRenderer*> mirrorSource{nullptr};
     std::atomic<bool> hasSharedMirrorConsumer{false};
     void* sharedMirrorNativeContext = nullptr;
-    juce::SpinLock sharedMirrorTextureLock;
+    juce::CriticalSection sharedMirrorTextureLock;
     GLsync sharedMirrorWriteFence = nullptr;
     GLsync sharedMirrorReadFence = nullptr;
     Texture alphaMaskTexture;
     std::atomic<bool> alphaMaskCaptureEnabled{false};
+    std::atomic<bool> alphaMaskRefreshRequested{false};
     std::vector<unsigned char> alphaMaskPixels;
     std::vector<unsigned char> alphaMaskReadbackBuffer;
     juce::SpinLock alphaMaskLock;
     int alphaMaskWidth = 0;
     int alphaMaskHeight = 0;
     std::atomic<std::uint64_t> alphaMaskGeneration{0};
+    std::atomic<std::uint64_t> outputGeneration{0};
+    std::uint64_t lastAlphaMaskSourceGeneration = 0;
     static constexpr int alphaMaskResolution = 64;
+    bool mirrorPresentationActive = false;
 
     // Timer to drive the child's GL rendering independently of the audio thread
     struct MirrorTimer : public juce::Timer {
@@ -261,7 +268,7 @@ private:
     void saveTextureToPNG(Texture texture, const juce::File& file);
     void activateTargetTexture(std::optional<Texture> texture);
     void setShader(juce::OpenGLShaderProgram* program);
-    void drawTexture(std::vector<std::optional<Texture>> textures);
+    void drawTexture(std::initializer_list<std::optional<Texture>> textures);
     void setAdditiveBlending();
     void setNormalBlending();
     void drawLine(const std::vector<float>& xPoints, const std::vector<float>& yPoints,
@@ -271,7 +278,8 @@ private:
     void fade();
     void drawCRT();
     void drawPresentationFadeOverlay();
-    void captureAlphaMask(Texture sourceTexture);
+    void renderAlphaMask(Texture sourceTexture);
+    void readAlphaMask();
     void checkGLErrors(juce::String file, int line);
     void viewportChanged(juce::Rectangle<int> area);
 

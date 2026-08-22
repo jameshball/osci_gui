@@ -153,18 +153,35 @@ void VisualiserRenderer::setMirrorSource(VisualiserRenderer* source) {
         previousSource->hasSharedMirrorConsumer.store(false);
     }
     if (source == nullptr) {
+        mirrorPresentationActive = false;
         return;
     }
 
     setShouldBeRunning(false);
     mirrorTimer = std::make_unique<MirrorTimer>(*this);
-    mirrorTimer->startTimerHz(60);
-    updateMirrorContext();
+    setMirrorPresentationActive(true);
+}
+
+void VisualiserRenderer::setMirrorPresentationActive(bool active) {
+    auto* source = mirrorSource.load();
+    mirrorPresentationActive = active && source != nullptr;
+    if (source != nullptr) {
+        source->hasSharedMirrorConsumer.store(mirrorPresentationActive && sharedMirrorNativeContext != nullptr);
+    }
+    if (mirrorTimer == nullptr) {
+        return;
+    }
+    if (mirrorPresentationActive) {
+        mirrorTimer->startTimerHz(60);
+        updateMirrorContext();
+    } else {
+        mirrorTimer->stopTimer();
+    }
 }
 
 void VisualiserRenderer::updateMirrorContext() {
     auto* source = mirrorSource.load();
-    if (source == nullptr) {
+    if (source == nullptr || !mirrorPresentationActive) {
         return;
     }
 
@@ -184,9 +201,9 @@ void VisualiserRenderer::updateMirrorContext() {
         openGLContext.detach();
         openGLContext.setNativeSharedContext(sourceNativeContext);
         sharedMirrorNativeContext = sourceNativeContext;
-        source->hasSharedMirrorConsumer.store(true);
         openGLContext.attachTo(*this);
     }
+    source->hasSharedMirrorConsumer.store(true);
     openGLContext.triggerRepaint();
 }
 
@@ -228,7 +245,7 @@ void VisualiserRenderer::publishSharedMirrorRead() {
 
 void VisualiserRenderer::clearSharedMirrorFences() {
     using namespace juce::gl;
-    juce::SpinLock::ScopedLockType lock(sharedMirrorTextureLock);
+    juce::CriticalSection::ScopedLockType lock(sharedMirrorTextureLock);
     if (sharedMirrorWriteFence != nullptr) {
         glDeleteSync(sharedMirrorWriteFence);
         sharedMirrorWriteFence = nullptr;
@@ -561,7 +578,7 @@ void VisualiserRenderer::drawFrame() {
     drawTexture({renderTexture});
 }
 
-void VisualiserRenderer::captureAlphaMask(Texture sourceTexture) {
+void VisualiserRenderer::renderAlphaMask(Texture sourceTexture) {
     using namespace juce::gl;
 
     if (sourceTexture.width <= 0 || sourceTexture.height <= 0) {
@@ -586,8 +603,18 @@ void VisualiserRenderer::captureAlphaMask(Texture sourceTexture) {
     drawTexture({sourceTexture});
     glEnable(GL_BLEND);
     setNormalBlending();
-    glReadPixels(0, 0, maskWidth, maskHeight, GL_RGBA, GL_UNSIGNED_BYTE,
-                 alphaMaskReadbackBuffer.data());
+}
+
+void VisualiserRenderer::readAlphaMask() {
+    using namespace juce::gl;
+
+    const int maskWidth = alphaMaskTexture.width;
+    const int maskHeight = alphaMaskTexture.height;
+    if (maskWidth <= 0 || maskHeight <= 0) {
+        return;
+    }
+    activateTargetTexture(alphaMaskTexture);
+    glReadPixels(0, 0, maskWidth, maskHeight, GL_RGBA, GL_UNSIGNED_BYTE, alphaMaskReadbackBuffer.data());
 
     {
         juce::SpinLock::ScopedLockType lock(alphaMaskLock);
@@ -720,7 +747,7 @@ void VisualiserRenderer::renderOpenGL() {
 
     if (openGLContext.isActive()) {
         auto* source = mirrorSource.load();
-        std::optional<juce::SpinLock::ScopedLockType> sharedTextureWriteLock;
+        std::optional<juce::CriticalSection::ScopedLockType> sharedTextureWriteLock;
         if (source == nullptr && hasSharedMirrorConsumer.load()) {
             sharedTextureWriteLock.emplace(sharedMirrorTextureLock);
             waitForSharedMirrorRead();
@@ -802,6 +829,8 @@ void VisualiserRenderer::renderOpenGL() {
                 postRenderCallback();
             }
 
+            outputGeneration.fetch_add(1);
+
             if (sharedTextureWriteLock.has_value()) {
                 publishSharedMirrorWrite();
                 sharedTextureWriteLock.reset();
@@ -839,18 +868,35 @@ void VisualiserRenderer::renderOpenGL() {
             setNormalBlending();
             drawPresentationFadeOverlay();
 
-            if (alphaMaskCaptureEnabled.load()) {
-                captureAlphaMask(outputTexture);
-            }
         };
 
         if (source != nullptr) {
-            juce::SpinLock::ScopedLockType lock(source->sharedMirrorTextureLock);
-            source->waitForSharedMirrorWrite();
-            drawOutputTexture(source->getRenderTexture(), true);
-            source->publishSharedMirrorRead();
+            bool readNewAlphaMask = false;
+            {
+                juce::CriticalSection::ScopedLockType lock(source->sharedMirrorTextureLock);
+                source->waitForSharedMirrorWrite();
+                const auto sourceTexture = source->getRenderTexture();
+                drawOutputTexture(sourceTexture, true);
+                const auto sourceGeneration = source->outputGeneration.load();
+                const bool captureEnabled = alphaMaskCaptureEnabled.load();
+                const bool refreshRequested = captureEnabled && alphaMaskRefreshRequested.exchange(false);
+                if (captureEnabled
+                    && (refreshRequested || sourceGeneration != lastAlphaMaskSourceGeneration)) {
+                    renderAlphaMask(sourceTexture);
+                    lastAlphaMaskSourceGeneration = sourceGeneration;
+                    readNewAlphaMask = true;
+                }
+                source->publishSharedMirrorRead();
+            }
+            if (readNewAlphaMask) {
+                readAlphaMask();
+            }
         } else {
             drawOutputTexture(renderTexture, false);
+            if (alphaMaskCaptureEnabled.load()) {
+                renderAlphaMask(renderTexture);
+                readAlphaMask();
+            }
         }
     }
 }
@@ -1098,25 +1144,25 @@ void VisualiserRenderer::setShader(juce::OpenGLShaderProgram *program) {
     program->use();
 }
 
-void VisualiserRenderer::drawTexture(std::vector<std::optional<Texture>> textures) {
+void VisualiserRenderer::drawTexture(std::initializer_list<std::optional<Texture>> textures) {
     using namespace juce::gl;
 
     glEnableVertexAttribArray(glGetAttribLocation(currentShader->getProgramID(), "aPos"));
 
-    for (int i = 0; i < textures.size(); ++i) {
-        if (textures[i].has_value()) {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, textures[i].value().id);
-            currentShader->setUniform(("uTexture" + juce::String(i)).toStdString().c_str(), i);
+    int textureIndex = 0;
+    for (const auto& texture : textures) {
+        if (texture.has_value()) {
+            glActiveTexture(GL_TEXTURE0 + textureIndex);
+            glBindTexture(GL_TEXTURE_2D, texture->id);
+            currentShader->setUniform(("uTexture" + juce::String(textureIndex)).toStdString().c_str(), textureIndex);
         }
+        ++textureIndex;
     }
 
     // Check if we need to apply texture coordinate transformation for cropping
     // Only do this when displaying to screen (no target texture) and a crop rectangle is set
-    if (!targetTexture.has_value() && cropRectangle.has_value() && !textures.empty() && textures[0].has_value()) {
-        // Create quad with adjusted texture coordinates for cropping
-        std::vector<float> croppedQuad = fullScreenQuad;
-        
+    const auto firstTexture = textures.begin();
+    if (!targetTexture.has_value() && cropRectangle.has_value() && firstTexture != textures.end() && firstTexture->has_value()) {
         // For simplified calculation, assume we're working with the first texture
         const auto& crop = cropRectangle.value();
         
