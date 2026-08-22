@@ -114,14 +114,15 @@ VisualiserRenderer::VisualiserRenderer(
     osci::AudioBackgroundThreadManager &threadManager,
     VisualiserRenderSize renderSize,
     double frameRate,
-    juce::String threadName
-) : osci::AudioBackgroundThread("VisualiserRenderer" + threadName, threadManager),
+    juce::String threadName,
+    bool attachOpenGLContextImmediately) : osci::AudioBackgroundThread("VisualiserRenderer" + threadName, threadManager),
     parameters(parameters),
     packedRenderSize(VisualiserGeometry::packRenderSize(renderSize)),
-    frameRate(frameRate)
-{
+    frameRate(frameRate) {
     openGLContext.setRenderer(this);
-    openGLContext.attachTo(*this);
+    if (attachOpenGLContextImmediately) {
+        openGLContext.attachTo(*this);
+    }
 }
 
 VisualiserRenderer::~VisualiserRenderer() {

@@ -39,7 +39,8 @@ public:
         osci::AudioBackgroundThreadManager &threadManager,
         VisualiserRenderSize renderSize = {1024, 1024},
         double frameRate = 60.0f,
-        juce::String threadName = ""
+        juce::String threadName = "",
+        bool attachOpenGLContextImmediately = true
     );
     ~VisualiserRenderer() override;
 
