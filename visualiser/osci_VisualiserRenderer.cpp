@@ -196,15 +196,23 @@ void VisualiserRenderer::updateMirrorContext() {
         return;
     }
 
+    const bool canAttach = isShowing() && getPeer() != nullptr;
     if (sourceNativeContext != sharedMirrorNativeContext) {
         source->hasSharedMirrorConsumer.store(false);
         openGLContext.detach();
         openGLContext.setNativeSharedContext(sourceNativeContext);
         sharedMirrorNativeContext = sourceNativeContext;
+    }
+
+    if (canAttach && !openGLContext.isAttached()) {
         openGLContext.attachTo(*this);
     }
-    source->hasSharedMirrorConsumer.store(true);
-    openGLContext.triggerRepaint();
+
+    const bool mirrorAttached = openGLContext.isAttached();
+    source->hasSharedMirrorConsumer.store(mirrorAttached);
+    if (mirrorAttached) {
+        openGLContext.triggerRepaint();
+    }
 }
 
 void VisualiserRenderer::waitForSharedMirrorWrite() {
