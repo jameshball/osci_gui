@@ -639,6 +639,10 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     texturedShader->setUniform("uCropRect", 0.0f, 0.0f, 1.0f, 1.0f);
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
     texturedShader->setUniform("uCheckerboardBackground", 0.0f);
+    const auto checkerColour0 = osci::Colours::surface();
+    const auto checkerColour1 = osci::Colours::darker();
+    texturedShader->setUniform("uCheckerColour0", checkerColour0.getFloatRed(), checkerColour0.getFloatGreen(), checkerColour0.getFloatBlue());
+    texturedShader->setUniform("uCheckerColour1", checkerColour1.getFloatRed(), checkerColour1.getFloatGreen(), checkerColour1.getFloatBlue());
 
     blurShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     blurShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(blurVertexShader));
@@ -825,6 +829,10 @@ void VisualiserRenderer::renderOpenGL() {
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
             texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
             texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
+            const auto checkerColour0 = osci::Colours::surface();
+            const auto checkerColour1 = osci::Colours::darker();
+            texturedShader->setUniform("uCheckerColour0", checkerColour0.getFloatRed(), checkerColour0.getFloatGreen(), checkerColour0.getFloatBlue());
+            texturedShader->setUniform("uCheckerColour1", checkerColour1.getFloatRed(), checkerColour1.getFloatGreen(), checkerColour1.getFloatBlue());
             drawTexture({outputTexture});
             glEnable(GL_BLEND);
             setNormalBlending();
