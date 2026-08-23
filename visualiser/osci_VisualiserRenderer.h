@@ -63,10 +63,13 @@ public:
     void setRenderMode(RenderMode mode) { renderMode.store(mode); }
     RenderMode getRenderMode() const { return renderMode.load(); }
 
-    int getRenderWidth() const { return renderTexture.width; }
-    int getRenderHeight() const { return renderTexture.height; }
-    VisualiserRenderSize getRenderSize() const { return {renderTexture.width, renderTexture.height}; }
-    Texture getRenderTexture() const { return renderTexture; }
+    int getRenderWidth() const { return getRenderTexture().width; }
+    int getRenderHeight() const { return getRenderTexture().height; }
+    VisualiserRenderSize getRenderSize() const {
+        const auto texture = getRenderTexture();
+        return {texture.width, texture.height};
+    }
+    Texture getRenderTexture() const;
 
     // Mirror mode: child composites the parent's finished texture through a shared GL context.
     void setMirrorSource(VisualiserRenderer* source);
@@ -162,6 +165,9 @@ private:
     Texture blur4Texture;
     Texture glowTexture;
     Texture renderTexture;
+    Texture localRenderTexture;
+    mutable juce::SpinLock completedRenderTextureLock;
+    Texture completedRenderTexture;
     Texture screenTexture;
     juce::OpenGLTexture screenOpenGLTexture;
     std::optional<Texture> targetTexture = std::nullopt;
@@ -204,6 +210,8 @@ private:
     std::array<Texture, sharedMirrorSlotCount> sharedMirrorTextures;
     std::array<GLsync, sharedMirrorSlotCount> sharedMirrorWriteFences{};
     std::array<GLsync, sharedMirrorSlotCount> sharedMirrorReadFences{};
+    std::array<bool, sharedMirrorSlotCount> sharedMirrorSlotsBeingRead{};
+    std::atomic<int> sharedMirrorReadReservations{0};
     std::atomic<int> sharedMirrorPublishedSlot{-1};
     std::atomic<std::uint64_t> sharedMirrorPublishedGeneration{0};
     Texture alphaMaskTexture;
@@ -270,7 +278,9 @@ private:
     void setupTextures(VisualiserRenderSize size);
     void resizeRenderTextures(VisualiserRenderSize size);
     void updateMirrorContext();
-    void publishSharedMirrorFrame();
+    int prepareSharedMirrorRenderTarget();
+    void publishSharedMirrorFrame(int slot);
+    void seedSharedMirrorFrame();
     void clearSharedMirrorFences();
     void drawLineTexture(const std::vector<float>& xPoints, const std::vector<float>& yPoints,
                          const std::vector<float>& rPoints, const std::vector<float>& gPoints, const std::vector<float>& bPoints);

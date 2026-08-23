@@ -142,6 +142,11 @@ VisualiserRenderer::~VisualiserRenderer() {
     }
 }
 
+Texture VisualiserRenderer::getRenderTexture() const {
+    juce::SpinLock::ScopedLockType lock(completedRenderTextureLock);
+    return completedRenderTexture;
+}
+
 void VisualiserRenderer::setMirrorSource(VisualiserRenderer* source) {
     auto* previousSource = mirrorSource.exchange(source);
     mirrorTimer.reset();
@@ -230,13 +235,18 @@ void VisualiserRenderer::updateMirrorContext() {
     }
 }
 
-void VisualiserRenderer::publishSharedMirrorFrame() {
+int VisualiserRenderer::prepareSharedMirrorRenderTarget() {
     using namespace juce::gl;
+    renderTexture = localRenderTexture;
     juce::CriticalSection::ScopedLockType lock(sharedMirrorTextureLock);
-    int slot = -1;
     const int currentSlot = sharedMirrorPublishedSlot.load();
-    for (int offset = 1; offset <= sharedMirrorSlotCount; ++offset) {
-        const int candidate = (currentSlot + offset + sharedMirrorSlotCount) % sharedMirrorSlotCount;
+    for (int candidate = 0; candidate < sharedMirrorSlotCount; ++candidate) {
+        if (candidate == currentSlot) {
+            continue;
+        }
+        if (sharedMirrorSlotsBeingRead[static_cast<std::size_t>(candidate)]) {
+            continue;
+        }
         auto& readFence = sharedMirrorReadFences[static_cast<std::size_t>(candidate)];
         if (readFence != nullptr) {
             const auto status = glClientWaitSync(readFence, 0, 0);
@@ -246,23 +256,45 @@ void VisualiserRenderer::publishSharedMirrorFrame() {
             glDeleteSync(readFence);
             readFence = nullptr;
         }
-        slot = candidate;
-        break;
+        auto& mirrorTexture = sharedMirrorTextures[static_cast<std::size_t>(candidate)];
+        if (mirrorTexture.width != localRenderTexture.width || mirrorTexture.height != localRenderTexture.height) {
+            mirrorTexture = makeTexture(localRenderTexture.width, localRenderTexture.height, mirrorTexture.id);
+        }
+        renderTexture = mirrorTexture;
+        return candidate;
     }
-    if (slot < 0) {
+    return -1;
+}
+
+void VisualiserRenderer::publishSharedMirrorFrame(int slot) {
+    using namespace juce::gl;
+    juce::CriticalSection::ScopedLockType lock(sharedMirrorTextureLock);
+    auto& writeFence = sharedMirrorWriteFences[static_cast<std::size_t>(slot)];
+    if (writeFence != nullptr) {
+        glDeleteSync(writeFence);
+    }
+    writeFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+    sharedMirrorPublishedSlot.store(slot);
+    sharedMirrorPublishedGeneration.fetch_add(1);
+}
+
+void VisualiserRenderer::seedSharedMirrorFrame() {
+    using namespace juce::gl;
+    juce::CriticalSection::ScopedLockType lock(sharedMirrorTextureLock);
+    if (sharedMirrorPublishedSlot.load() >= 0 || localRenderTexture.id == 0) {
         return;
     }
-
-    auto& mirrorTexture = sharedMirrorTextures[static_cast<std::size_t>(slot)];
-    if (mirrorTexture.width != renderTexture.width || mirrorTexture.height != renderTexture.height) {
-        mirrorTexture = makeTexture(renderTexture.width, renderTexture.height, mirrorTexture.id);
-        activateTargetTexture(renderTexture);
+    constexpr int slot = 0;
+    auto& mirrorTexture = sharedMirrorTextures[slot];
+    if (mirrorTexture.width != localRenderTexture.width || mirrorTexture.height != localRenderTexture.height) {
+        mirrorTexture = makeTexture(localRenderTexture.width, localRenderTexture.height, mirrorTexture.id);
+        activateTargetTexture(localRenderTexture);
     }
     glBindTexture(GL_TEXTURE_2D, mirrorTexture.id);
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, renderTexture.width, renderTexture.height);
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, localRenderTexture.width, localRenderTexture.height);
     glBindTexture(GL_TEXTURE_2D, 0);
-
-    auto& writeFence = sharedMirrorWriteFences[static_cast<std::size_t>(slot)];
+    auto& writeFence = sharedMirrorWriteFences[slot];
     if (writeFence != nullptr) {
         glDeleteSync(writeFence);
     }
@@ -286,6 +318,7 @@ void VisualiserRenderer::clearSharedMirrorFences() {
             fence = nullptr;
         }
     }
+    sharedMirrorSlotsBeingRead.fill(false);
     sharedMirrorPublishedSlot.store(-1);
     sharedMirrorPublishedGeneration.store(0);
 }
@@ -752,10 +785,20 @@ void VisualiserRenderer::openGLContextClosing() {
 
     std::optional<juce::CriticalSection::ScopedLockType> mirrorLock;
     if (mirrorSource.load() == nullptr) {
+        {
+            juce::CriticalSection::ScopedLockType lock(sharedMirrorTextureLock);
+            sharedMirrorSurfaceReady.store(false);
+            sharedMirrorSurfaceEpoch.fetch_add(1);
+            hasSharedMirrorConsumer.store(false);
+        }
+        while (sharedMirrorReadReservations.load() > 0) {
+            juce::Thread::yield();
+        }
         mirrorLock.emplace(sharedMirrorTextureLock);
-        sharedMirrorSurfaceReady.store(false);
-        sharedMirrorSurfaceEpoch.fetch_add(1);
-        hasSharedMirrorConsumer.store(false);
+    }
+    {
+        juce::SpinLock::ScopedLockType lock(completedRenderTextureLock);
+        completedRenderTexture = {};
     }
     clearSharedMirrorFences();
     glDeleteBuffers(1, &quadIndexBuffer);
@@ -768,7 +811,7 @@ void VisualiserRenderer::openGLContextClosing() {
     glDeleteTextures(1, &blur2Texture.id);
     glDeleteTextures(1, &blur3Texture.id);
     glDeleteTextures(1, &blur4Texture.id);
-    glDeleteTextures(1, &renderTexture.id);
+    glDeleteTextures(1, &localRenderTexture.id);
     for (auto& texture : sharedMirrorTextures) {
         glDeleteTextures(1, &texture.id);
         texture = {};
@@ -793,6 +836,7 @@ void VisualiserRenderer::openGLContextClosing() {
     // this triggers setupArrays to be called again when the scope next renders
     scratchVertices.clear();
     renderTexture = {};
+    localRenderTexture = {};
 }
 
 void VisualiserRenderer::renderOpenGL() {
@@ -868,14 +912,24 @@ void VisualiserRenderer::renderOpenGL() {
 
             juce::CriticalSection::ScopedLockType lock(samplesLock);
 
+            const int mirrorSlot = hasSharedMirrorConsumer.load() ? prepareSharedMirrorRenderTarget() : -1;
+            if (mirrorSlot < 0) {
+                renderTexture = localRenderTexture;
+            }
+
             if (parameters.getUpsamplingEnabled()) {
                 renderScope(smoothedXSamples, smoothedYSamples, smoothedRSamples, smoothedGSamples, smoothedBSamples);
             } else {
                 renderScope(xSamples, ySamples, rSamples, gSamples, bSamples);
             }
 
-            if (hasSharedMirrorConsumer.load()) {
-                publishSharedMirrorFrame();
+            {
+                juce::SpinLock::ScopedLockType completedTextureLock(completedRenderTextureLock);
+                completedRenderTexture = renderTexture;
+            }
+
+            if (mirrorSlot >= 0) {
+                publishSharedMirrorFrame(mirrorSlot);
                 publishedMirrorFrame = true;
             }
             if (postRenderCallback) {
@@ -886,7 +940,7 @@ void VisualiserRenderer::renderOpenGL() {
 
         if (source == nullptr && hasSharedMirrorConsumer.load()
             && !publishedMirrorFrame && sharedMirrorPublishedSlot.load() < 0) {
-            publishSharedMirrorFrame();
+            seedSharedMirrorFrame();
         }
 
         const auto drawOutputTexture = [this, transparent, showCheckerboard](Texture outputTexture, bool fitToComponent) {
@@ -918,6 +972,9 @@ void VisualiserRenderer::renderOpenGL() {
 
         if (source != nullptr) {
             bool readNewAlphaMask = false;
+            int sourceSlot = -1;
+            Texture sourceTexture;
+            std::uint64_t sourceGeneration = 0;
             {
                 juce::CriticalSection::ScopedLockType lock(source->sharedMirrorTextureLock);
                 const bool matchingSurface = source->sharedMirrorSurfaceReady.load()
@@ -932,25 +989,33 @@ void VisualiserRenderer::renderOpenGL() {
                             glDeleteSync(writeFence);
                             writeFence = nullptr;
                         }
-                        const auto sourceTexture = source->sharedMirrorTextures[static_cast<std::size_t>(slot)];
-                        drawOutputTexture(sourceTexture, true);
-                        const auto sourceGeneration = source->sharedMirrorPublishedGeneration.load();
-                        const bool captureEnabled = alphaMaskCaptureEnabled.load();
-                        const bool refreshRequested = captureEnabled && alphaMaskRefreshRequested.exchange(false);
-                        if (captureEnabled
-                            && (refreshRequested || sourceGeneration != lastAlphaMaskSourceGeneration)) {
-                            renderAlphaMask(sourceTexture);
-                            lastAlphaMaskSourceGeneration = sourceGeneration;
-                            readNewAlphaMask = true;
-                        }
-                        auto& readFence = source->sharedMirrorReadFences[static_cast<std::size_t>(slot)];
-                        if (readFence != nullptr) {
-                            glDeleteSync(readFence);
-                        }
-                        readFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-                        glFlush();
+                        sourceSlot = slot;
+                        sourceTexture = source->sharedMirrorTextures[static_cast<std::size_t>(slot)];
+                        sourceGeneration = source->sharedMirrorPublishedGeneration.load();
+                        source->sharedMirrorSlotsBeingRead[static_cast<std::size_t>(slot)] = true;
+                        source->sharedMirrorReadReservations.fetch_add(1);
                     }
                 }
+            }
+            if (sourceSlot >= 0) {
+                drawOutputTexture(sourceTexture, true);
+                const bool captureEnabled = alphaMaskCaptureEnabled.load();
+                const bool refreshRequested = captureEnabled && alphaMaskRefreshRequested.exchange(false);
+                if (captureEnabled
+                    && (refreshRequested || sourceGeneration != lastAlphaMaskSourceGeneration)) {
+                    renderAlphaMask(sourceTexture);
+                    lastAlphaMaskSourceGeneration = sourceGeneration;
+                    readNewAlphaMask = true;
+                }
+                juce::CriticalSection::ScopedLockType lock(source->sharedMirrorTextureLock);
+                auto& readFence = source->sharedMirrorReadFences[static_cast<std::size_t>(sourceSlot)];
+                if (readFence != nullptr) {
+                    glDeleteSync(readFence);
+                }
+                readFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+                glFlush();
+                source->sharedMirrorSlotsBeingRead[static_cast<std::size_t>(sourceSlot)] = false;
+                source->sharedMirrorReadReservations.fetch_sub(1);
             }
             if (readNewAlphaMask) {
                 readAlphaMask();
@@ -1064,7 +1129,8 @@ void VisualiserRenderer::allocateRenderTextures(VisualiserRenderSize size, bool 
     blur2Texture = makeTexture(sizes.tightBlur.width, sizes.tightBlur.height, reuseExistingTextures ? blur2Texture.id : 0);
     blur3Texture = makeTexture(sizes.wideBlur.width, sizes.wideBlur.height, reuseExistingTextures ? blur3Texture.id : 0);
     blur4Texture = makeTexture(sizes.wideBlur.width, sizes.wideBlur.height, reuseExistingTextures ? blur4Texture.id : 0);
-    renderTexture = makeTexture(sizes.output.width, sizes.output.height, reuseExistingTextures ? renderTexture.id : 0);
+    localRenderTexture = makeTexture(sizes.output.width, sizes.output.height, reuseExistingTextures ? localRenderTexture.id : 0);
+    renderTexture = localRenderTexture;
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     glowTexture = makeTexture(sizes.tightBlur.width, sizes.tightBlur.height, reuseExistingTextures ? glowTexture.id : 0);
     reflectionTexture = createReflectionTexture();
