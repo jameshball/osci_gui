@@ -11,15 +11,7 @@
 #include "osci_VisualiserRendererConfig.h"
 #include "osci_VisualiserGeometry.h"
 #include "osci_VisualiserParameters.h"
-#include "osci_PopoutAlphaHitTest.h"
-
-struct Texture {
-    GLuint id = 0;
-    int width = 0;
-    int height = 0;
-};
-
-class VisualiserWindow;
+#include "osci_OpenGLFrameMirror.h"
 
 struct VisualiserRendererAssets {
     std::function<juce::Image()> noiseScreen;
@@ -38,14 +30,9 @@ public:
         XYZ = 2,
         XYRGB = 3,
     };
-    VisualiserRenderer(
-        VisualiserParameters &parameters,
-        osci::AudioBackgroundThreadManager &threadManager,
-        VisualiserRenderSize renderSize = {1024, 1024},
-        double frameRate = 60.0f,
-        juce::String threadName = "",
-        bool attachOpenGLContextImmediately = true
-    );
+    VisualiserRenderer(VisualiserParameters& parameters, osci::AudioBackgroundThreadManager& threadManager,
+                       VisualiserRenderSize renderSize = {1024, 1024}, double frameRate = 60.0f,
+                       juce::String threadName = "");
     ~VisualiserRenderer() override;
 
     void resized() override;
@@ -73,22 +60,12 @@ public:
     }
     Texture getRenderTexture() const;
 
-    // Mirror mode: child composites the parent's finished texture through a shared GL context.
-    void setMirrorSource(VisualiserRenderer* source);
-    void setMirrorPresentationActive(bool active);
-    bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
-    void setAlphaMaskCaptureEnabled(bool enabled) { alphaMaskCaptureEnabled.store(enabled); }
-    void requestAlphaMaskRefresh() {
-        alphaMaskRefreshRequested.store(true);
-        openGLContext.triggerRepaint();
-    }
-    VisualiserRenderSize getAlphaMaskSize();
-    std::uint64_t getAlphaMaskGeneration() const { return alphaMaskGeneration.load(); }
-    bool alphaMaskHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
+    osci::OpenGLFrameMirror& getFrameMirror() { return frameMirror; }
 
     void getFrame(std::vector<unsigned char>& frame);
     void getFrame(std::span<std::uint8_t> frame);
-    void drawFrame();    juce::Rectangle<int> getViewportArea() const { return viewportArea; }
+    void drawFrame();
+    juce::Rectangle<int> getViewportArea() const { return viewportArea; }
     void setViewportArea(juce::Rectangle<int> area) {
         viewportArea = area;
         viewportChanged(viewportArea);
@@ -118,8 +95,6 @@ private:
     std::optional<juce::Rectangle<float>> cropRectangle;
 
     float renderScale = 1.0f;
-    bool dpiDiagnosticsLogged = false;
-
     GLuint quadIndexBuffer = 0;
     GLuint vertexIndexBuffer = 0;
     GLuint vertexBuffer = 0;
@@ -201,46 +176,7 @@ private:
     std::unique_ptr<juce::OpenGLShaderProgram> afterglowShader;
 #endif
 
-    // Mirror mode state
-    std::atomic<VisualiserRenderer*> mirrorSource{nullptr};
-    std::atomic<bool> hasSharedMirrorConsumer{false};
-    std::atomic<void*> sharedMirrorNativeContext{nullptr};
-    std::atomic<std::uint64_t> sharedMirrorSourceEpoch{0};
-    juce::CriticalSection sharedMirrorTextureLock;
-    std::atomic<bool> sharedMirrorSurfaceReady{false};
-    std::atomic<std::uint64_t> sharedMirrorSurfaceEpoch{0};
-    static constexpr int sharedMirrorSlotCount = 2;
-    std::array<Texture, sharedMirrorSlotCount> sharedMirrorTextures;
-    std::array<GLsync, sharedMirrorSlotCount> sharedMirrorWriteFences{};
-    std::array<GLsync, sharedMirrorSlotCount> sharedMirrorReadFences{};
-    std::array<bool, sharedMirrorSlotCount> sharedMirrorSlotsBeingRead{};
-    std::atomic<int> sharedMirrorReadReservations{0};
-    std::atomic<int> sharedMirrorPublishedSlot{-1};
-    std::atomic<std::uint64_t> sharedMirrorPublishedGeneration{0};
-    Texture alphaMaskTexture;
-    std::atomic<bool> alphaMaskCaptureEnabled{false};
-    std::atomic<bool> alphaMaskRefreshRequested{false};
-    std::vector<unsigned char> alphaMaskPixels;
-    std::vector<unsigned char> alphaMaskReadbackBuffer;
-    juce::SpinLock alphaMaskLock;
-    int alphaMaskWidth = 0;
-    int alphaMaskHeight = 0;
-    std::atomic<std::uint64_t> alphaMaskGeneration{0};
-    std::uint64_t lastMirrorRepaintSourceGeneration = 0;
-    bool hasMirrorRepaintSourceGeneration = false;
-    std::uint64_t lastAlphaMaskSourceGeneration = 0;
-    static constexpr int alphaMaskResolution = 64;
-    bool mirrorPresentationActive = false;
-
-    // Timer to drive the child's GL rendering independently of the audio thread
-    struct MirrorTimer : public juce::Timer {
-        VisualiserRenderer& owner;
-        MirrorTimer(VisualiserRenderer& o) : owner(o) {}
-        void timerCallback() override {
-            owner.updateMirrorContext();
-        }
-    };
-    std::unique_ptr<MirrorTimer> mirrorTimer;
+    osci::OpenGLFrameMirror frameMirror;
 
     std::unique_ptr<juce::OpenGLShaderProgram> simpleShader;
     std::unique_ptr<juce::OpenGLShaderProgram> texturedShader;
@@ -280,11 +216,6 @@ private:
     void setupArrays(int num_points);
     void setupTextures(VisualiserRenderSize size);
     void resizeRenderTextures(VisualiserRenderSize size);
-    void updateMirrorContext();
-    int prepareSharedMirrorRenderTarget();
-    void publishSharedMirrorFrame(int slot);
-    void seedSharedMirrorFrame();
-    void clearSharedMirrorFences();
     void drawLineTexture(const std::vector<float>& xPoints, const std::vector<float>& yPoints,
                          const std::vector<float>& rPoints, const std::vector<float>& gPoints, const std::vector<float>& bPoints);
     void saveTextureToPNG(Texture texture, const juce::File& file);
@@ -300,8 +231,6 @@ private:
     void fade();
     void drawCRT();
     void drawPresentationFadeOverlay();
-    void renderAlphaMask(Texture sourceTexture);
-    void readAlphaMask();
     void checkGLErrors(juce::String file, int line);
     void viewportChanged(juce::Rectangle<int> area);
 

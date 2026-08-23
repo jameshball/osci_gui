@@ -7,8 +7,8 @@
 
 namespace osci {
 
-inline bool popoutAlphaHitTest(const unsigned char* rgba, int width, int height, float normalisedX, float normalisedY,
-                               float normalisedRadiusX, float normalisedRadiusY, std::uint8_t threshold) {
+inline bool alphaHitTest(const unsigned char* rgba, int width, int height, float normalisedX, float normalisedY,
+                         float normalisedRadiusX, float normalisedRadiusY, std::uint8_t threshold) {
     if (rgba == nullptr || width <= 0 || height <= 0 || normalisedX < 0.0f || normalisedX > 1.0f
         || normalisedY < 0.0f || normalisedY > 1.0f) {
         return false;
@@ -35,4 +35,4 @@ inline bool popoutAlphaHitTest(const unsigned char* rgba, int width, int height,
     return false;
 }
 
-} // namespace osci
+}

@@ -34,5 +34,7 @@
 #include "components/list/osci_DraggableListBox.cpp"
 #include "components/midi/osci_CustomMidiKeyboardComponent.cpp"
 #if OSCI_GUI_ENABLE_VISUALISER
+#include "visualiser/osci_OpenGLFrameMirror.cpp"
+#include "visualiser/osci_OpenGLTextureView.cpp"
 #include "visualiser/osci_VisualiserRenderer.cpp"
 #endif
