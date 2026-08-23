@@ -13,6 +13,7 @@ uniform float uFishEye;
 uniform sampler2D uScreen; // still sampled for focus/gain texturing, but we'll reduce its influence on colour
 uniform vec3 uLineColor;
 uniform float uUseVertexColor; // 1.0 to use per-vertex RGB, 0.0 to use hue-only
+uniform float uTransparent;
 varying float vSize;
 varying vec4 uvl;
 varying vec2 vTexCoord;
@@ -78,7 +79,8 @@ void main() {
     vec3 screenSample = texture2D(uScreen, texCoord).rgb;
     float screenLuma = clamp(screenSample.g, 0.1, 1.0);
     vec3 rgb = brightness * baseColor * screenLuma;
-    gl_FragColor = vec4(rgb, 1.0);
+    float alpha = uTransparent > 0.5 ? max(max(rgb.r, rgb.g), rgb.b) : 1.0;
+    gl_FragColor = vec4(rgb, alpha);
 }
 
 )";

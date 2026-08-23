@@ -125,6 +125,7 @@ public:
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         scaleEffect->markLockable(true);
         booleans.push_back(scaleEffect->linked);
+        booleans.push_back(transparentBackground);
 #endif
     }
 
@@ -183,6 +184,14 @@ public:
     }
 #endif
     
+    bool isTransparentBackgroundEnabled() {
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+        return transparentBackground->getBoolValue();
+#else
+        return false;
+#endif
+    }
+
     double getFocus() {
         return 0.8 * focusEffect->getActualValue() / 100;
     }
@@ -253,6 +262,7 @@ public:
     TriggerSlopeParameter* triggerSlope = new TriggerSlopeParameter();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    osci::BooleanParameter* transparentBackground = new osci::BooleanParameter("Transparent Background", "transparentBackground", VERSION_HINT, false, "Makes the visualiser background transparent while preserving the selected screen overlay.");
     osci::BooleanParameter* flipVertical = new osci::BooleanParameter("Flip Vertical", "flipVertical", VERSION_HINT, false, "Flips the visualiser vertically.");
     osci::BooleanParameter* flipHorizontal = new osci::BooleanParameter("Flip Horizontal", "flipHorizontal", VERSION_HINT, false, "Flips the visualiser horizontally.");
     osci::BooleanParameter* goniometer = new osci::BooleanParameter("Goniometer", "goniometer", VERSION_HINT, false, "Rotates the visualiser to replicate a goniometer display to show the phase relationship between two channels.");

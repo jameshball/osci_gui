@@ -1,20 +1,17 @@
 #pragma once
 
+#include <span>
+
 #include <algorithm>
+#include <array>
 #include <functional>
 #include <cstdint>
+#include <initializer_list>
 
 #include "osci_VisualiserRendererConfig.h"
 #include "osci_VisualiserGeometry.h"
 #include "osci_VisualiserParameters.h"
-
-struct Texture {
-    GLuint id = 0;
-    int width = 0;
-    int height = 0;
-};
-
-class VisualiserWindow;
+#include "osci_OpenGLFrameMirror.h"
 
 struct VisualiserRendererAssets {
     std::function<juce::Image()> noiseScreen;
@@ -33,13 +30,9 @@ public:
         XYZ = 2,
         XYRGB = 3,
     };
-    VisualiserRenderer(
-        VisualiserParameters &parameters,
-        osci::AudioBackgroundThreadManager &threadManager,
-        VisualiserRenderSize renderSize = {1024, 1024},
-        double frameRate = 60.0f,
-        juce::String threadName = ""
-    );
+    VisualiserRenderer(VisualiserParameters& parameters, osci::AudioBackgroundThreadManager& threadManager,
+                       VisualiserRenderSize renderSize = {1024, 1024}, double frameRate = 60.0f,
+                       juce::String threadName = "");
     ~VisualiserRenderer() override;
 
     void resized() override;
@@ -53,34 +46,26 @@ public:
     void setResolution(int resolution) { setRenderSize({resolution, resolution}); }
     void setFrameRate(double frameRate);
     void setPresentationFadeAlpha(float alpha);
+    void setNativeTransparencySupported(bool supported) { nativeTransparencySupported.store(supported); }
     void setAssets(VisualiserRendererAssets assets);
     // Render mode can be changed from the message thread at any time
     void setRenderMode(RenderMode mode) { renderMode.store(mode); }
     RenderMode getRenderMode() const { return renderMode.load(); }
 
-    int getRenderWidth() const { return renderTexture.width; }
-    int getRenderHeight() const { return renderTexture.height; }
-    VisualiserRenderSize getRenderSize() const { return {renderTexture.width, renderTexture.height}; }
-    Texture getRenderTexture() const { return renderTexture; }
-
-    // Mirror mode: child displays parent's rendered frame instead of its own pipeline
-    void setMirrorSource(VisualiserRenderer* source) {
-        mirrorSource.store(source);
-        if (source != nullptr) {
-            setShouldBeRunning(false);
-            openGLContext.setContinuousRepainting(true);
-            mirrorTimer = std::make_unique<MirrorTimer>(*this);
-            mirrorTimer->startTimerHz(60);
-        } else {
-            mirrorTimer.reset();
-            openGLContext.setContinuousRepainting(false);
-        }
+    int getRenderWidth() const { return getRenderTexture().width; }
+    int getRenderHeight() const { return getRenderTexture().height; }
+    VisualiserRenderSize getRenderSize() const {
+        const auto texture = getRenderTexture();
+        return {texture.width, texture.height};
     }
-    void setHasMirrorConsumer(bool has) { hasMirrorConsumer.store(has); }
-    bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
+    Texture getRenderTexture() const;
+
+    osci::OpenGLFrameMirror& getFrameMirror() { return frameMirror; }
 
     void getFrame(std::vector<unsigned char>& frame);
-    void drawFrame();    juce::Rectangle<int> getViewportArea() const { return viewportArea; }
+    void getFrame(std::span<std::uint8_t> frame);
+    void drawFrame();
+    juce::Rectangle<int> getViewportArea() const { return viewportArea; }
     void setViewportArea(juce::Rectangle<int> area) {
         viewportArea = area;
         viewportChanged(viewportArea);
@@ -110,8 +95,6 @@ private:
     std::optional<juce::Rectangle<float>> cropRectangle;
 
     float renderScale = 1.0f;
-    bool dpiDiagnosticsLogged = false;
-
     GLuint quadIndexBuffer = 0;
     GLuint vertexIndexBuffer = 0;
     GLuint vertexBuffer = 0;
@@ -140,6 +123,7 @@ private:
     // to be applied on the next renderOpenGL invocation.
     std::atomic<std::uint64_t> pendingRenderSize = 0;
     std::atomic<float> presentationFadeAlpha = 0.0f;
+    std::atomic<bool> nativeTransparencySupported{false};
     int prevSampleBufferCount = 0;
     long lastTriggerPosition = 0;
 
@@ -159,6 +143,9 @@ private:
     Texture blur4Texture;
     Texture glowTexture;
     Texture renderTexture;
+    Texture localRenderTexture;
+    mutable juce::SpinLock completedRenderTextureLock;
+    Texture completedRenderTexture;
     Texture screenTexture;
     juce::OpenGLTexture screenOpenGLTexture;
     std::optional<Texture> targetTexture = std::nullopt;
@@ -189,26 +176,7 @@ private:
     std::unique_ptr<juce::OpenGLShaderProgram> afterglowShader;
 #endif
 
-    // Mirror mode state
-    std::atomic<VisualiserRenderer*> mirrorSource{nullptr};
-    std::atomic<bool> hasMirrorConsumer{false};
-    std::vector<unsigned char> capturedPixels;
-    int capturedWidth = 0;
-    int capturedHeight = 0;
-    juce::SpinLock capturedPixelsLock;
-    GLuint mirrorTexture = 0;
-    int mirrorTextureWidth = 0;
-    int mirrorTextureHeight = 0;
-    std::vector<unsigned char> mirrorPixelBuffer; // child's local copy to avoid allocation under lock
-    std::vector<unsigned char> captureReadbackBuffer; // parent's local readback buffer (no lock needed)
-
-    // Timer to drive the child's GL rendering independently of the audio thread
-    struct MirrorTimer : public juce::Timer {
-        VisualiserRenderer& owner;
-        MirrorTimer(VisualiserRenderer& o) : owner(o) {}
-        void timerCallback() override { owner.openGLContext.triggerRepaint(); }
-    };
-    std::unique_ptr<MirrorTimer> mirrorTimer;
+    osci::OpenGLFrameMirror frameMirror;
 
     std::unique_ptr<juce::OpenGLShaderProgram> simpleShader;
     std::unique_ptr<juce::OpenGLShaderProgram> texturedShader;
@@ -243,7 +211,7 @@ private:
 
     void setOffsetAndScale(juce::OpenGLShaderProgram* shader);
     ScreenOverlay getEffectiveScreenOverlay();
-    Texture makeTexture(int width, int height, GLuint textureID = 0);
+    Texture makeTexture(int width, int height, GLuint textureID = 0, GLint internalFormat = juce::gl::GL_RGBA32F, GLenum pixelType = juce::gl::GL_FLOAT);
     void allocateRenderTextures(VisualiserRenderSize size, bool reuseExistingTextures);
     void setupArrays(int num_points);
     void setupTextures(VisualiserRenderSize size);
@@ -253,7 +221,7 @@ private:
     void saveTextureToPNG(Texture texture, const juce::File& file);
     void activateTargetTexture(std::optional<Texture> texture);
     void setShader(juce::OpenGLShaderProgram* program);
-    void drawTexture(std::vector<std::optional<Texture>> textures);
+    void drawTexture(std::initializer_list<std::optional<Texture>> textures);
     void setAdditiveBlending();
     void setNormalBlending();
     void drawLine(const std::vector<float>& xPoints, const std::vector<float>& yPoints,

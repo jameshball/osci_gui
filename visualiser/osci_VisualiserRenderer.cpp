@@ -109,18 +109,14 @@ void drawImageAspectFit(juce::Graphics& g, const juce::Image& source, juce::Rect
 
 }
 
-VisualiserRenderer::VisualiserRenderer(
-    VisualiserParameters &parameters,
-    osci::AudioBackgroundThreadManager &threadManager,
-    VisualiserRenderSize renderSize,
-    double frameRate,
-    juce::String threadName
-) : osci::AudioBackgroundThread("VisualiserRenderer" + threadName, threadManager),
+VisualiserRenderer::VisualiserRenderer(VisualiserParameters& parameters, osci::AudioBackgroundThreadManager& threadManager,
+                                       VisualiserRenderSize renderSize, double frameRate, juce::String threadName)
+    : osci::AudioBackgroundThread("VisualiserRenderer" + threadName, threadManager),
     parameters(parameters),
     packedRenderSize(VisualiserGeometry::packRenderSize(renderSize)),
-    frameRate(frameRate)
-{
+    frameRate(frameRate) {
     openGLContext.setRenderer(this);
+    frameMirror.setSourceRepaintCallback([this] { openGLContext.triggerRepaint(); });
     openGLContext.attachTo(*this);
 }
 
@@ -132,8 +128,13 @@ VisualiserRenderer::~VisualiserRenderer() {
     // thread in their own destructor. setShouldBeRunning is idempotent, so this is a
     // safe defense-in-depth for direct VisualiserRenderer use or future subclasses.
     setShouldBeRunning(false, [this] { renderingSemaphore.release(); });
-    mirrorTimer.reset();
+    frameMirror.setSourceRepaintCallback(nullptr);
     openGLContext.detach();
+}
+
+Texture VisualiserRenderer::getRenderTexture() const {
+    juce::SpinLock::ScopedLockType lock(completedRenderTextureLock);
+    return completedRenderTexture;
 }
 
 void VisualiserRenderer::setAssets(VisualiserRendererAssets newAssets) {
@@ -422,8 +423,15 @@ void VisualiserRenderer::resized() {
 }
 
 void VisualiserRenderer::getFrame(std::vector<unsigned char>& frame) {
+    getFrame(std::span<std::uint8_t>(frame));
+}
+
+void VisualiserRenderer::getFrame(std::span<std::uint8_t> frame) {
     using namespace juce::gl;
 
+    if (frame.empty()) {
+        return;
+    }
     glBindTexture(GL_TEXTURE_2D, renderTexture.id);
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame.data());
 }
@@ -433,6 +441,8 @@ void VisualiserRenderer::drawFrame() {
 
     // The crop rectangle will be applied in drawTexture if it's set
     setShader(texturedShader.get());
+    texturedShader->setUniform("uPreserveAlpha", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
+    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
     drawTexture({renderTexture});
 }
 
@@ -475,6 +485,12 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     texturedShader->use();
     texturedShader->setUniform("uCropEnabled", 0.0f);
     texturedShader->setUniform("uCropRect", 0.0f, 0.0f, 1.0f, 1.0f);
+    texturedShader->setUniform("uPreserveAlpha", 0.0f);
+    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
+    const auto checkerColour0 = osci::Colours::surface();
+    const auto checkerColour1 = osci::Colours::darker();
+    texturedShader->setUniform("uCheckerColour0", checkerColour0.getFloatRed(), checkerColour0.getFloatGreen(), checkerColour0.getFloatBlue());
+    texturedShader->setUniform("uCheckerColour1", checkerColour1.getFloatRed(), checkerColour1.getFloatGreen(), checkerColour1.getFloatBlue());
 
     blurShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     blurShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(blurVertexShader));
@@ -504,6 +520,7 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     glGenBuffers(1, &vertexIndexBuffer);
 
     setupTextures(VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
+    frameMirror.sourceContextCreated(openGLContext.getRawContext());
 
     // Textures are now sized for the current render size, so any pending request that
     // arrived before the context was ready can be discarded.
@@ -513,11 +530,11 @@ void VisualiserRenderer::newOpenGLContextCreated() {
 void VisualiserRenderer::openGLContextClosing() {
     using namespace juce::gl;
 
-    if (mirrorTexture != 0) {
-        glDeleteTextures(1, &mirrorTexture);
-        mirrorTexture = 0;
+    frameMirror.sourceContextClosing();
+    {
+        juce::SpinLock::ScopedLockType lock(completedRenderTextureLock);
+        completedRenderTexture = {};
     }
-
     glDeleteBuffers(1, &quadIndexBuffer);
     glDeleteBuffers(1, &vertexIndexBuffer);
     glDeleteBuffers(1, &vertexBuffer);
@@ -528,7 +545,7 @@ void VisualiserRenderer::openGLContextClosing() {
     glDeleteTextures(1, &blur2Texture.id);
     glDeleteTextures(1, &blur3Texture.id);
     glDeleteTextures(1, &blur4Texture.id);
-    glDeleteTextures(1, &renderTexture.id);
+    glDeleteTextures(1, &localRenderTexture.id);
     screenOpenGLTexture.release();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
@@ -547,6 +564,8 @@ void VisualiserRenderer::openGLContextClosing() {
 
     // this triggers setupArrays to be called again when the scope next renders
     scratchVertices.clear();
+    renderTexture = {};
+    localRenderTexture = {};
 }
 
 void VisualiserRenderer::renderOpenGL() {
@@ -558,115 +577,10 @@ void VisualiserRenderer::renderOpenGL() {
             resizeRenderTextures(VisualiserGeometry::unpackRenderSize(requestedPackedSize));
         }
 
-        // One-time DPI diagnostics: log before anything modifies the viewport.
-        // JUCE sets glViewport to the physical pixel area just before calling
-        // renderOpenGL(), so reading it here captures the true JUCE viewport.
-        if (!dpiDiagnosticsLogged) {
-            dpiDiagnosticsLogged = true;
-
-            GLint vp[4] = {};
-            glGetIntegerv(GL_VIEWPORT, vp);
-
-            auto componentBounds = getLocalBounds();
-            auto screenBounds = getScreenBounds();
-            auto globalScale = juce::Desktop::getInstance().getGlobalScaleFactor();
-            auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
-            double displayScale = (display != nullptr) ? display->scale : -1.0;
-
-            juce::String diagMsg;
-            diagMsg << "[DPI Diagnostics] "
-                    << "getRenderingScale()=" << openGLContext.getRenderingScale()
-                    << " | component: " << componentBounds.getWidth() << "x" << componentBounds.getHeight()
-                    << " | screenBounds: " << screenBounds.getWidth() << "x" << screenBounds.getHeight()
-                    << " @ (" << screenBounds.getX() << "," << screenBounds.getY() << ")"
-                    << " | juceViewport: " << vp[2] << "x" << vp[3]
-                    << " @ (" << vp[0] << "," << vp[1] << ")"
-                    << " | globalScaleFactor=" << globalScale
-                    << " | displayScale=" << displayScale
-                    << " | viewportArea: " << viewportArea.getWidth() << "x" << viewportArea.getHeight();
-
-#if JUCE_WINDOWS
-            // Query the actual GL surface dimensions from Win32 to compare with
-            // what JUCE computed. This helps diagnose DPI scaling mismatches.
-            HDC hdc = wglGetCurrentDC();
-            if (hdc != nullptr) {
-                HWND hwnd = WindowFromDC(hdc);
-                if (hwnd != nullptr) {
-                    RECT rect = {};
-                    GetClientRect(hwnd, &rect);
-                    int surfaceW = rect.right - rect.left;
-                    int surfaceH = rect.bottom - rect.top;
-                    diagMsg << " | win32Surface: " << surfaceW << "x" << surfaceH;
-                }
-            }
-#endif
-
-            juce::Logger::writeToLog(diagMsg);
-        }
-
-        juce::OpenGLHelpers::clear(visualiserScreenBaseColour());
-
-        // Mirror mode: display the parent's captured frame
-        auto* source = mirrorSource.load();
-        if (source != nullptr) {
-            renderScale = (float)openGLContext.getRenderingScale();
-
-            // Use full component bounds (ignore toolbar) for mirror mode
-            float totalW = getWidth() * renderScale;
-            float totalH = getHeight() * renderScale;
-
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glViewport(0, 0, juce::roundToInt(totalW), juce::roundToInt(totalH));
-
-            int w = 0, h = 0;
-            {
-                juce::SpinLock::ScopedLockType lock(source->capturedPixelsLock);
-                if (source->capturedPixels.empty()) {
-                    return;
-                }
-                w = source->capturedWidth;
-                h = source->capturedHeight;
-                mirrorPixelBuffer.assign(source->capturedPixels.begin(), source->capturedPixels.end());
-            }
-
-            // Create or re-use mirror texture in OUR GL context
-            if (mirrorTexture == 0) {
-                glGenTextures(1, &mirrorTexture);
-                glBindTexture(GL_TEXTURE_2D, mirrorTexture);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, mirrorPixelBuffer.data());
-                mirrorTextureWidth = w;
-                mirrorTextureHeight = h;
-            } else {
-                glBindTexture(GL_TEXTURE_2D, mirrorTexture);
-                if (w == mirrorTextureWidth && h == mirrorTextureHeight) {
-                    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, mirrorPixelBuffer.data());
-                } else {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, mirrorPixelBuffer.data());
-                    mirrorTextureWidth = w;
-                    mirrorTextureHeight = h;
-                }
-            }
-
-            // Centered aspect-fit viewport using full component size (not viewportArea)
-            const auto fitted = VisualiserGeometry::getAspectFitBounds(
-                juce::Rectangle<int>(0, 0, juce::roundToInt(totalW), juce::roundToInt(totalH)),
-                VisualiserGeometry::sanitiseRenderSize(w, h));
-            glViewport(fitted.getX(), fitted.getY(), fitted.getWidth(), fitted.getHeight());
-
-            setShader(texturedShader.get());
-            texturedShader->setUniform("uResizeForCanvas", 1.0f);
-            texturedShader->setUniform("uCropEnabled", 0.0f);
-
-            Texture mirrorTex { mirrorTexture, w, h };
-            targetTexture = std::nullopt;
-            drawTexture({ mirrorTex });
-            drawPresentationFadeOverlay();
-            return;
-        }
+        const bool transparent = parameters.isTransparentBackgroundEnabled();
+        const bool showCheckerboard = transparent && !nativeTransparencySupported.load();
+        const bool clearToTransparent = transparent && nativeTransparencySupported.load();
+        juce::OpenGLHelpers::clear(clearToTransparent ? juce::Colours::transparentBlack : visualiserScreenBaseColour());
 
         // we have a new buffer to render
         if (sampleBufferCount != prevSampleBufferCount) {
@@ -678,48 +592,56 @@ void VisualiserRenderer::renderOpenGL() {
 
             juce::CriticalSection::ScopedLockType lock(samplesLock);
 
+            const auto mirrorFrame = frameMirror.beginWrite(localRenderTexture, [this](int width, int height, GLuint texture) {
+                return makeTexture(width, height, texture);
+            });
+            renderTexture = mirrorFrame.texture;
+
             if (parameters.getUpsamplingEnabled()) {
                 renderScope(smoothedXSamples, smoothedYSamples, smoothedRSamples, smoothedGSamples, smoothedBSamples);
             } else {
                 renderScope(xSamples, ySamples, rSamples, gSamples, bSamples);
             }
 
+            {
+                juce::SpinLock::ScopedLockType completedTextureLock(completedRenderTextureLock);
+                completedRenderTexture = renderTexture;
+            }
+
+            frameMirror.publish(mirrorFrame);
             if (postRenderCallback) {
                 postRenderCallback();
             }
-
             renderingSemaphore.release();
         }
 
-        // render texture to screen
-        activateTargetTexture(std::nullopt);
-        setShader(texturedShader.get());
-        drawTexture({renderTexture});
-        drawPresentationFadeOverlay();
-
-        // Capture frame for mirror consumer (child window)
-        if (hasMirrorConsumer.load()) {
-            int w = renderTexture.width;
-            int h = renderTexture.height;
-            size_t numBytes = (size_t)w * h * 4;
-
-            // Read pixels into a local buffer (outside lock) to avoid stalling the child
-            if (captureReadbackBuffer.size() != numBytes)
-                captureReadbackBuffer.resize(numBytes);
-
-            glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTexture.id, 0);
-            glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, captureReadbackBuffer.data());
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-            // Brief lock to swap data to the shared buffer
-            {
-                juce::SpinLock::ScopedLockType lock(capturedPixelsLock);
-                std::swap(capturedPixels, captureReadbackBuffer);
-                capturedWidth = w;
-                capturedHeight = h;
-            }
+        if (frameMirror.hasConsumer() && !frameMirror.hasPublishedFrame()) {
+            frameMirror.publishExisting(localRenderTexture,
+                                        [this](int width, int height, GLuint texture) {
+                                            return makeTexture(width, height, texture);
+                                        },
+                                        [this](Texture texture) { activateTargetTexture(texture); });
         }
+
+        const auto drawOutputTexture = [this, transparent, showCheckerboard](Texture outputTexture) {
+            activateTargetTexture(std::nullopt);
+            glDisable(GL_BLEND);
+            setShader(texturedShader.get());
+            texturedShader->setUniform("uResizeForCanvas", 1.0f);
+            texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
+            texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
+            const auto checkerColour0 = osci::Colours::surface();
+            const auto checkerColour1 = osci::Colours::darker();
+            texturedShader->setUniform("uCheckerColour0", checkerColour0.getFloatRed(), checkerColour0.getFloatGreen(), checkerColour0.getFloatBlue());
+            texturedShader->setUniform("uCheckerColour1", checkerColour1.getFloatRed(), checkerColour1.getFloatGreen(), checkerColour1.getFloatBlue());
+            drawTexture({outputTexture});
+            glEnable(GL_BLEND);
+            setNormalBlending();
+            drawPresentationFadeOverlay();
+
+        };
+
+        drawOutputTexture(renderTexture);
     }
 }
 
@@ -819,7 +741,8 @@ void VisualiserRenderer::allocateRenderTextures(VisualiserRenderSize size, bool 
     blur2Texture = makeTexture(sizes.tightBlur.width, sizes.tightBlur.height, reuseExistingTextures ? blur2Texture.id : 0);
     blur3Texture = makeTexture(sizes.wideBlur.width, sizes.wideBlur.height, reuseExistingTextures ? blur3Texture.id : 0);
     blur4Texture = makeTexture(sizes.wideBlur.width, sizes.wideBlur.height, reuseExistingTextures ? blur4Texture.id : 0);
-    renderTexture = makeTexture(sizes.output.width, sizes.output.height, reuseExistingTextures ? renderTexture.id : 0);
+    localRenderTexture = makeTexture(sizes.output.width, sizes.output.height, reuseExistingTextures ? localRenderTexture.id : 0);
+    renderTexture = localRenderTexture;
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     glowTexture = makeTexture(sizes.tightBlur.width, sizes.tightBlur.height, reuseExistingTextures ? glowTexture.id : 0);
     reflectionTexture = createReflectionTexture();
@@ -828,7 +751,7 @@ void VisualiserRenderer::allocateRenderTextures(VisualiserRenderSize size, bool 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-Texture VisualiserRenderer::makeTexture(int width, int height, GLuint textureID) {
+Texture VisualiserRenderer::makeTexture(int width, int height, GLuint textureID, GLint internalFormat, GLenum pixelType) {
     using namespace juce::gl;
 
     // replace existing texture if it exists, otherwise create new texture
@@ -836,14 +759,14 @@ Texture VisualiserRenderer::makeTexture(int width, int height, GLuint textureID)
         glGenTextures(1, &textureID);
     }
     glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, GL_RGBA, pixelType, nullptr);
 
     // Set texture filtering and wrapping
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    float borderColor[] = {0.0f, 0.0f, 0.0f, 0.0f};
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureID, 0);
@@ -963,25 +886,25 @@ void VisualiserRenderer::setShader(juce::OpenGLShaderProgram *program) {
     program->use();
 }
 
-void VisualiserRenderer::drawTexture(std::vector<std::optional<Texture>> textures) {
+void VisualiserRenderer::drawTexture(std::initializer_list<std::optional<Texture>> textures) {
     using namespace juce::gl;
 
     glEnableVertexAttribArray(glGetAttribLocation(currentShader->getProgramID(), "aPos"));
 
-    for (int i = 0; i < textures.size(); ++i) {
-        if (textures[i].has_value()) {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, textures[i].value().id);
-            currentShader->setUniform(("uTexture" + juce::String(i)).toStdString().c_str(), i);
+    int textureIndex = 0;
+    for (const auto& texture : textures) {
+        if (texture.has_value()) {
+            glActiveTexture(GL_TEXTURE0 + textureIndex);
+            glBindTexture(GL_TEXTURE_2D, texture->id);
+            currentShader->setUniform(("uTexture" + juce::String(textureIndex)).toStdString().c_str(), textureIndex);
         }
+        ++textureIndex;
     }
 
     // Check if we need to apply texture coordinate transformation for cropping
     // Only do this when displaying to screen (no target texture) and a crop rectangle is set
-    if (!targetTexture.has_value() && cropRectangle.has_value() && !textures.empty() && textures[0].has_value()) {
-        // Create quad with adjusted texture coordinates for cropping
-        std::vector<float> croppedQuad = fullScreenQuad;
-        
+    const auto firstTexture = textures.begin();
+    if (!targetTexture.has_value() && cropRectangle.has_value() && firstTexture != textures.end() && firstTexture->has_value()) {
         // For simplified calculation, assume we're working with the first texture
         const auto& crop = cropRectangle.value();
         
@@ -1132,6 +1055,7 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
 
     lineShader->setUniform("uFadeAmount", fadeAmount);
     lineShader->setUniform("uNEdges", (GLfloat)nEdges);
+    lineShader->setUniform("uTransparent", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
     const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(VisualiserGeometry::unpackRenderSize(packedRenderSize.load()));
     lineShader->setUniform("uWorldToClipScale", worldToClipScale.x, worldToClipScale.y);
     setOffsetAndScale(lineShader.get());
@@ -1163,11 +1087,20 @@ void VisualiserRenderer::fade() {
     setNormalBlending();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    const bool transparent = parameters.isTransparentBackgroundEnabled();
+    if (transparent) {
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+    }
+
     setShader(afterglowShader.get());
     afterglowShader->setUniform("fadeAmount", fadeAmount);
     afterglowShader->setUniform("afterglowAmount", (float)parameters.getAfterglow());
     afterglowShader->setUniform("uResizeForCanvas", lineTexture.width / renderTexture.width);
     drawTexture({lineTexture});
+
+    if (transparent) {
+        setNormalBlending();
+    }
 #else
     simpleShader->use();
     glEnableVertexAttribArray(glGetAttribLocation(simpleShader->getProgramID(), "vertexPosition"));
@@ -1209,6 +1142,10 @@ void VisualiserRenderer::drawCRT() {
     using namespace juce::gl;
 
     setNormalBlending();
+
+    texturedShader->use();
+    texturedShader->setUniform("uPreserveAlpha", 0.0f);
+    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
 
     activateTargetTexture(blur1Texture);
     setShader(texturedShader.get());
@@ -1261,6 +1198,12 @@ void VisualiserRenderer::drawCRT() {
 #endif
 
     activateTargetTexture(renderTexture);
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    const bool transparent = parameters.isTransparentBackgroundEnabled();
+    if (transparent) {
+        glDisable(GL_BLEND);
+    }
+#endif
     setShader(outputShader.get());
     // Lower exposure slightly for RGB pipeline (previous mono calibration was higher)
     outputShader->setUniform("uExposure", 0.18f);
@@ -1286,9 +1229,15 @@ void VisualiserRenderer::drawCRT() {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
     outputShader->setUniform("uFishEye", screenOverlay == ScreenOverlay::VectorDisplay ? VECTOR_DISPLAY_FISH_EYE : 0.0f);
     outputShader->setUniform("uRealScreen", ScreenOverlayParameter::isRealisticDisplay(screenOverlay) ? 1.0f : 0.0f);
+    outputShader->setUniform("uTransparent", transparent ? 1.0f : 0.0f);
+    outputShader->setUniform("uShowGraticule", screenOverlay == ScreenOverlay::Graticule || screenOverlay == ScreenOverlay::SmudgedGraticule ? 1.0f : 0.0f);
+    outputShader->setUniform("uUseScreenScatter", screenOverlay == ScreenOverlay::Smudged || screenOverlay == ScreenOverlay::SmudgedGraticule ? 1.0f : 0.0f);
 #else
     outputShader->setUniform("uFishEye", 0.0f);
     outputShader->setUniform("uRealScreen", 0.0f);
+    outputShader->setUniform("uTransparent", 0.0f);
+    outputShader->setUniform("uShowGraticule", 0.0f);
+    outputShader->setUniform("uUseScreenScatter", 0.0f);
 #endif
     outputShader->setUniform("uResizeForCanvas", lineTexture.width / (float) renderTexture.width);
     // Colour uniform removed: line texture already encodes RGB
@@ -1302,6 +1251,11 @@ void VisualiserRenderer::drawCRT() {
         glowTexture,
 #endif
     });
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    if (transparent) {
+        glEnable(GL_BLEND);
+    }
+#endif
     checkGLErrors(__FILE__, __LINE__);
 }
 

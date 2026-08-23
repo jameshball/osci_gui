@@ -97,6 +97,11 @@
 #include "components/list/osci_ComponentList.h"
 #include "components/list/osci_DraggableListBox.h"
 #include "components/midi/osci_CustomMidiKeyboardComponent.h"
+#if OSCI_GUI_ENABLE_VISUALISER
+#include "visualiser/osci_OpenGLTexture.h"
+#include "visualiser/osci_OpenGLFrameMirror.h"
+#include "visualiser/osci_OpenGLTextureView.h"
+#endif
 #include "components/parameters/osci_DarkBarPainter.h"
 #include "components/parameters/osci_LabelledBarComponent.h"
 #include "components/parameters/osci_InlineEditorHelper.h"
