@@ -82,7 +82,6 @@ public:
         return isRealisticDisplay((ScreenOverlay)(int)getValueUnnormalised());
     }
 #endif
-
 };
 
 enum class TriggerSlope : int { Rising = 0, Falling = 1 };
@@ -184,7 +183,7 @@ public:
         return shutterSync->getBoolValue();
     }
 #endif
-
+    
     bool isTransparentBackgroundEnabled() {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
         return transparentBackground->getBoolValue();
