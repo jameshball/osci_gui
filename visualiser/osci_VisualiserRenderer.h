@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 #include <algorithm>
 #include <array>
 #include <functional>
@@ -85,6 +87,7 @@ public:
     bool alphaMaskHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
 
     void getFrame(std::vector<unsigned char>& frame);
+    void getFrame(std::span<std::uint8_t> frame);
     void drawFrame();    juce::Rectangle<int> getViewportArea() const { return viewportArea; }
     void setViewportArea(juce::Rectangle<int> area) {
         viewportArea = area;

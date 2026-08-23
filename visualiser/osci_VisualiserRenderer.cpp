@@ -609,8 +609,15 @@ void VisualiserRenderer::resized() {
 }
 
 void VisualiserRenderer::getFrame(std::vector<unsigned char>& frame) {
+    getFrame(std::span<std::uint8_t>(frame));
+}
+
+void VisualiserRenderer::getFrame(std::span<std::uint8_t> frame) {
     using namespace juce::gl;
 
+    if (frame.empty()) {
+        return;
+    }
     glBindTexture(GL_TEXTURE_2D, renderTexture.id);
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame.data());
 }
