@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <functional>
 #include <cstdint>
 #include <initializer_list>
@@ -72,7 +73,10 @@ public:
     void setMirrorPresentationActive(bool active);
     bool isMirrorMode() const { return mirrorSource.load() != nullptr; }
     void setAlphaMaskCaptureEnabled(bool enabled) { alphaMaskCaptureEnabled.store(enabled); }
-    void requestAlphaMaskRefresh() { alphaMaskRefreshRequested.store(true); }
+    void requestAlphaMaskRefresh() {
+        alphaMaskRefreshRequested.store(true);
+        openGLContext.triggerRepaint();
+    }
     VisualiserRenderSize getAlphaMaskSize();
     std::uint64_t getAlphaMaskGeneration() const { return alphaMaskGeneration.load(); }
     bool alphaMaskHasAlphaNear(juce::Point<float> normalisedPoint, juce::Point<float> normalisedRadius, std::uint8_t threshold);
@@ -191,10 +195,17 @@ private:
     // Mirror mode state
     std::atomic<VisualiserRenderer*> mirrorSource{nullptr};
     std::atomic<bool> hasSharedMirrorConsumer{false};
-    void* sharedMirrorNativeContext = nullptr;
+    std::atomic<void*> sharedMirrorNativeContext{nullptr};
+    std::atomic<std::uint64_t> sharedMirrorSourceEpoch{0};
     juce::CriticalSection sharedMirrorTextureLock;
-    GLsync sharedMirrorWriteFence = nullptr;
-    GLsync sharedMirrorReadFence = nullptr;
+    std::atomic<bool> sharedMirrorSurfaceReady{false};
+    std::atomic<std::uint64_t> sharedMirrorSurfaceEpoch{0};
+    static constexpr int sharedMirrorSlotCount = 2;
+    std::array<Texture, sharedMirrorSlotCount> sharedMirrorTextures;
+    std::array<GLsync, sharedMirrorSlotCount> sharedMirrorWriteFences{};
+    std::array<GLsync, sharedMirrorSlotCount> sharedMirrorReadFences{};
+    std::atomic<int> sharedMirrorPublishedSlot{-1};
+    std::atomic<std::uint64_t> sharedMirrorPublishedGeneration{0};
     Texture alphaMaskTexture;
     std::atomic<bool> alphaMaskCaptureEnabled{false};
     std::atomic<bool> alphaMaskRefreshRequested{false};
@@ -204,7 +215,8 @@ private:
     int alphaMaskWidth = 0;
     int alphaMaskHeight = 0;
     std::atomic<std::uint64_t> alphaMaskGeneration{0};
-    std::atomic<std::uint64_t> outputGeneration{0};
+    std::uint64_t lastMirrorRepaintSourceGeneration = 0;
+    bool hasMirrorRepaintSourceGeneration = false;
     std::uint64_t lastAlphaMaskSourceGeneration = 0;
     static constexpr int alphaMaskResolution = 64;
     bool mirrorPresentationActive = false;
@@ -252,16 +264,13 @@ private:
 
     void setOffsetAndScale(juce::OpenGLShaderProgram* shader);
     ScreenOverlay getEffectiveScreenOverlay();
-    Texture makeTexture(int width, int height, GLuint textureID = 0);
+    Texture makeTexture(int width, int height, GLuint textureID = 0, GLint internalFormat = juce::gl::GL_RGBA32F, GLenum pixelType = juce::gl::GL_FLOAT);
     void allocateRenderTextures(VisualiserRenderSize size, bool reuseExistingTextures);
     void setupArrays(int num_points);
     void setupTextures(VisualiserRenderSize size);
     void resizeRenderTextures(VisualiserRenderSize size);
     void updateMirrorContext();
-    void waitForSharedMirrorWrite();
-    void publishSharedMirrorWrite();
-    void waitForSharedMirrorRead();
-    void publishSharedMirrorRead();
+    void publishSharedMirrorFrame();
     void clearSharedMirrorFences();
     void drawLineTexture(const std::vector<float>& xPoints, const std::vector<float>& yPoints,
                          const std::vector<float>& rPoints, const std::vector<float>& gPoints, const std::vector<float>& bPoints);
