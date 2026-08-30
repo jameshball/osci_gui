@@ -240,7 +240,7 @@ public:
         return triggerSlope->getValueUnnormalised() == (int)TriggerSlope::Rising;
     }
 
-    ScreenOverlayParameter* screenOverlay = new ScreenOverlayParameter("Screen Overlay", "screenOverlay", VERSION_HINT, ScreenOverlay::SmudgedGraticule);
+    ScreenOverlayParameter* screenOverlay = new ScreenOverlayParameter("Screen Overlay", "screenOverlay", VERSION_HINT, ScreenOverlay::Empty);
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
     osci::BooleanParameter* upsamplingEnabled = new osci::BooleanParameter(
         "Upsample Audio",
