@@ -572,9 +572,9 @@ void VisualiserRenderer::renderOpenGL() {
         }
 
         const bool transparent = parameters.isTransparentBackgroundEnabled();
-        const bool clearToTransparent = transparent && nativeTransparencySupported.load();
+        const bool preserveDisplayAlpha = transparent && nativeTransparencySupported.load();
         const auto embeddedBackground = transparent ? juce::Colours::black : visualiserScreenBaseColour();
-        juce::OpenGLHelpers::clear(clearToTransparent ? juce::Colours::transparentBlack : embeddedBackground);
+        juce::OpenGLHelpers::clear(preserveDisplayAlpha ? juce::Colours::transparentBlack : embeddedBackground);
 
         // we have a new buffer to render
         if (sampleBufferCount != prevSampleBufferCount) {
@@ -617,12 +617,12 @@ void VisualiserRenderer::renderOpenGL() {
                                         [this](Texture texture) { activateTargetTexture(texture); });
         }
 
-        const auto drawOutputTexture = [this, clearToTransparent](Texture outputTexture) {
+        const auto drawOutputTexture = [this, preserveDisplayAlpha](Texture outputTexture) {
             activateTargetTexture(std::nullopt);
             glDisable(GL_BLEND);
             setShader(texturedShader.get());
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
-            texturedShader->setUniform("uPreserveAlpha", clearToTransparent ? 1.0f : 0.0f);
+            texturedShader->setUniform("uPreserveAlpha", preserveDisplayAlpha ? 1.0f : 0.0f);
             drawTexture({outputTexture});
             glEnable(GL_BLEND);
             setNormalBlending();
