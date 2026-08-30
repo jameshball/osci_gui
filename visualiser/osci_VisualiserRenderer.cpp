@@ -442,7 +442,6 @@ void VisualiserRenderer::drawFrame() {
     // The crop rectangle will be applied in drawTexture if it's set
     setShader(texturedShader.get());
     texturedShader->setUniform("uPreserveAlpha", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
-    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
     drawTexture({renderTexture});
 }
 
@@ -486,11 +485,6 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     texturedShader->setUniform("uCropEnabled", 0.0f);
     texturedShader->setUniform("uCropRect", 0.0f, 0.0f, 1.0f, 1.0f);
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
-    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
-    const auto checkerColour0 = osci::Colours::surface();
-    const auto checkerColour1 = osci::Colours::darker();
-    texturedShader->setUniform("uCheckerColour0", checkerColour0.getFloatRed(), checkerColour0.getFloatGreen(), checkerColour0.getFloatBlue());
-    texturedShader->setUniform("uCheckerColour1", checkerColour1.getFloatRed(), checkerColour1.getFloatGreen(), checkerColour1.getFloatBlue());
 
     blurShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     blurShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(blurVertexShader));
@@ -629,7 +623,6 @@ void VisualiserRenderer::renderOpenGL() {
             setShader(texturedShader.get());
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
             texturedShader->setUniform("uPreserveAlpha", clearToTransparent ? 1.0f : 0.0f);
-            texturedShader->setUniform("uCheckerboardBackground", 0.0f);
             drawTexture({outputTexture});
             glEnable(GL_BLEND);
             setNormalBlending();
@@ -1141,7 +1134,6 @@ void VisualiserRenderer::drawCRT() {
 
     texturedShader->use();
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
-    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
 
     activateTargetTexture(blur1Texture);
     setShader(texturedShader.get());
