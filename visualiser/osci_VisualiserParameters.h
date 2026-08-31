@@ -121,11 +121,14 @@ inline ScreenOverlay getScreenOverlayForRenderSize(ScreenOverlay overlay, Visual
 
 class VisualiserParameters {
 public:
-    VisualiserParameters() {
+    explicit VisualiserParameters(bool transparentByDefault = false) {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+        transparentBackground = new osci::BooleanParameter("Transparent Background", "transparentBackground", VERSION_HINT, transparentByDefault, "Makes the visualiser background transparent while preserving the selected screen overlay.");
         scaleEffect->markLockable(true);
         booleans.push_back(scaleEffect->linked);
         booleans.push_back(transparentBackground);
+#else
+        juce::ignoreUnused(transparentByDefault);
 #endif
     }
 
@@ -262,7 +265,7 @@ public:
     TriggerSlopeParameter* triggerSlope = new TriggerSlopeParameter();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    osci::BooleanParameter* transparentBackground = new osci::BooleanParameter("Transparent Background", "transparentBackground", VERSION_HINT, false, "Makes the visualiser background transparent while preserving the selected screen overlay.");
+    osci::BooleanParameter* transparentBackground = nullptr;
     osci::BooleanParameter* flipVertical = new osci::BooleanParameter("Flip Vertical", "flipVertical", VERSION_HINT, false, "Flips the visualiser vertically.");
     osci::BooleanParameter* flipHorizontal = new osci::BooleanParameter("Flip Horizontal", "flipHorizontal", VERSION_HINT, false, "Flips the visualiser horizontally.");
     osci::BooleanParameter* goniometer = new osci::BooleanParameter("Goniometer", "goniometer", VERSION_HINT, false, "Rotates the visualiser to replicate a goniometer display to show the phase relationship between two channels.");
