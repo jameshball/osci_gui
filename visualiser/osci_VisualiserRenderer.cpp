@@ -442,7 +442,6 @@ void VisualiserRenderer::drawFrame() {
     // The crop rectangle will be applied in drawTexture if it's set
     setShader(texturedShader.get());
     texturedShader->setUniform("uPreserveAlpha", parameters.isTransparentBackgroundEnabled() ? 1.0f : 0.0f);
-    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
     drawTexture({renderTexture});
 }
 
@@ -486,11 +485,6 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     texturedShader->setUniform("uCropEnabled", 0.0f);
     texturedShader->setUniform("uCropRect", 0.0f, 0.0f, 1.0f, 1.0f);
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
-    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
-    const auto checkerColour0 = osci::Colours::surface();
-    const auto checkerColour1 = osci::Colours::darker();
-    texturedShader->setUniform("uCheckerColour0", checkerColour0.getFloatRed(), checkerColour0.getFloatGreen(), checkerColour0.getFloatBlue());
-    texturedShader->setUniform("uCheckerColour1", checkerColour1.getFloatRed(), checkerColour1.getFloatGreen(), checkerColour1.getFloatBlue());
 
     blurShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     blurShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(blurVertexShader));
@@ -578,9 +572,9 @@ void VisualiserRenderer::renderOpenGL() {
         }
 
         const bool transparent = parameters.isTransparentBackgroundEnabled();
-        const bool showCheckerboard = transparent && !nativeTransparencySupported.load();
-        const bool clearToTransparent = transparent && nativeTransparencySupported.load();
-        juce::OpenGLHelpers::clear(clearToTransparent ? juce::Colours::transparentBlack : visualiserScreenBaseColour());
+        const bool preserveDisplayAlpha = transparent && nativeTransparencySupported.load();
+        const auto embeddedBackground = transparent ? juce::Colours::black : visualiserScreenBaseColour();
+        juce::OpenGLHelpers::clear(preserveDisplayAlpha ? juce::Colours::transparentBlack : embeddedBackground);
 
         // we have a new buffer to render
         if (sampleBufferCount != prevSampleBufferCount) {
@@ -623,17 +617,12 @@ void VisualiserRenderer::renderOpenGL() {
                                         [this](Texture texture) { activateTargetTexture(texture); });
         }
 
-        const auto drawOutputTexture = [this, transparent, showCheckerboard](Texture outputTexture) {
+        const auto drawOutputTexture = [this, preserveDisplayAlpha](Texture outputTexture) {
             activateTargetTexture(std::nullopt);
             glDisable(GL_BLEND);
             setShader(texturedShader.get());
             texturedShader->setUniform("uResizeForCanvas", 1.0f);
-            texturedShader->setUniform("uPreserveAlpha", transparent ? 1.0f : 0.0f);
-            texturedShader->setUniform("uCheckerboardBackground", showCheckerboard ? 1.0f : 0.0f);
-            const auto checkerColour0 = osci::Colours::surface();
-            const auto checkerColour1 = osci::Colours::darker();
-            texturedShader->setUniform("uCheckerColour0", checkerColour0.getFloatRed(), checkerColour0.getFloatGreen(), checkerColour0.getFloatBlue());
-            texturedShader->setUniform("uCheckerColour1", checkerColour1.getFloatRed(), checkerColour1.getFloatGreen(), checkerColour1.getFloatBlue());
+            texturedShader->setUniform("uPreserveAlpha", preserveDisplayAlpha ? 1.0f : 0.0f);
             drawTexture({outputTexture});
             glEnable(GL_BLEND);
             setNormalBlending();
@@ -1145,7 +1134,6 @@ void VisualiserRenderer::drawCRT() {
 
     texturedShader->use();
     texturedShader->setUniform("uPreserveAlpha", 0.0f);
-    texturedShader->setUniform("uCheckerboardBackground", 0.0f);
 
     activateTargetTexture(blur1Texture);
     setShader(texturedShader.get());

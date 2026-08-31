@@ -123,6 +123,12 @@ class VisualiserParameters {
 public:
     VisualiserParameters() {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+#if SOSCI
+        const bool transparentByDefault = juce::JUCEApplicationBase::isStandaloneApp();
+#else
+        constexpr bool transparentByDefault = false;
+#endif
+        transparentBackground = new osci::BooleanParameter("Transparent Background", "transparentBackground", VERSION_HINT, transparentByDefault, "Makes the visualiser background transparent while preserving the selected screen overlay.");
         scaleEffect->markLockable(true);
         booleans.push_back(scaleEffect->linked);
         booleans.push_back(transparentBackground);
@@ -240,7 +246,7 @@ public:
         return triggerSlope->getValueUnnormalised() == (int)TriggerSlope::Rising;
     }
 
-    ScreenOverlayParameter* screenOverlay = new ScreenOverlayParameter("Screen Overlay", "screenOverlay", VERSION_HINT, ScreenOverlay::SmudgedGraticule);
+    ScreenOverlayParameter* screenOverlay = new ScreenOverlayParameter("Screen Overlay", "screenOverlay", VERSION_HINT, ScreenOverlay::Empty);
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
     osci::BooleanParameter* upsamplingEnabled = new osci::BooleanParameter(
         "Upsample Audio",
@@ -262,7 +268,7 @@ public:
     TriggerSlopeParameter* triggerSlope = new TriggerSlopeParameter();
 
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-    osci::BooleanParameter* transparentBackground = new osci::BooleanParameter("Transparent Background", "transparentBackground", VERSION_HINT, false, "Makes the visualiser background transparent while preserving the selected screen overlay.");
+    osci::BooleanParameter* transparentBackground = nullptr;
     osci::BooleanParameter* flipVertical = new osci::BooleanParameter("Flip Vertical", "flipVertical", VERSION_HINT, false, "Flips the visualiser vertically.");
     osci::BooleanParameter* flipHorizontal = new osci::BooleanParameter("Flip Horizontal", "flipHorizontal", VERSION_HINT, false, "Flips the visualiser horizontally.");
     osci::BooleanParameter* goniometer = new osci::BooleanParameter("Goniometer", "goniometer", VERSION_HINT, false, "Rotates the visualiser to replicate a goniometer display to show the phase relationship between two channels.");
