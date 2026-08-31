@@ -121,14 +121,17 @@ inline ScreenOverlay getScreenOverlayForRenderSize(ScreenOverlay overlay, Visual
 
 class VisualiserParameters {
 public:
-    explicit VisualiserParameters(bool transparentByDefault = false) {
+    VisualiserParameters() {
 #if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+#if SOSCI
+        const bool transparentByDefault = juce::JUCEApplicationBase::isStandaloneApp();
+#else
+        constexpr bool transparentByDefault = false;
+#endif
         transparentBackground = new osci::BooleanParameter("Transparent Background", "transparentBackground", VERSION_HINT, transparentByDefault, "Makes the visualiser background transparent while preserving the selected screen overlay.");
         scaleEffect->markLockable(true);
         booleans.push_back(scaleEffect->linked);
         booleans.push_back(transparentBackground);
-#else
-        juce::ignoreUnused(transparentByDefault);
 #endif
     }
 
