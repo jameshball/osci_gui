@@ -2,8 +2,7 @@
 
 namespace osci {
 
-OverlayLookAndFeel::OverlayLookAndFeel()
-    : LookAndFeel (TypefaceData {}, false) {
+OverlayLookAndFeel::OverlayLookAndFeel() {
     applyOverlayColours (*this);
 }
 

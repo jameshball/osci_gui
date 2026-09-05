@@ -172,14 +172,10 @@ const Theme*& Theme::activePalette()
 }
 
 LookAndFeel::LookAndFeel()
-    : LookAndFeel (TypefaceData {}, true) {
+    : LookAndFeel(TypefaceData {}) {
 }
 
-LookAndFeel::LookAndFeel (TypefaceData typefaceData)
-    : LookAndFeel (typefaceData, true) {
-}
-
-LookAndFeel::LookAndFeel (TypefaceData typefaceData, bool shouldSetAsDefaultLookAndFeel) {
+LookAndFeel::LookAndFeel(TypefaceData typefaceData) {
     if (typefaceData.regularData != nullptr && typefaceData.regularSize > 0) {
         regularTypeface = juce::Typeface::createSystemTypefaceFor (typefaceData.regularData, typefaceData.regularSize);
     }
@@ -197,10 +193,6 @@ LookAndFeel::LookAndFeel (TypefaceData typefaceData, bool shouldSetAsDefaultLook
     // UI colours
     getCurrentColourScheme().setUIColour(ColourScheme::widgetBackground, Colours::veryDark());
 
-    // I have to do this, otherwise components are initialised before the look and feel is set
-    if (shouldSetAsDefaultLookAndFeel) {
-        juce::LookAndFeel::setDefaultLookAndFeel(this);
-    }
 }
 
 LookAndFeel& LookAndFeel::getSharedInstance() {
