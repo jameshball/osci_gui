@@ -154,226 +154,18 @@ void VisualiserRenderer::setAssets(VisualiserRendererAssets newAssets) {
 void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
     {
         juce::CriticalSection::ScopedLockType lock(samplesLock);
+        processInputBuffer(buffer);
 
-        const int numSamples = buffer.getNumSamples();
-        const int numChannels = buffer.getNumChannels();
-
-        // copy the buffer before applying effects
-        audioOutputBuffer.setSize(2, numSamples, false, true, true);
-        audioOutputBuffer.copyFrom(0, 0, buffer, 0, 0, numSamples);
-        audioOutputBuffer.copyFrom(1, 0, buffer, 1, 0, numSamples);
-
-        xSamples.clear();
-        ySamples.clear();
-        zSamples.clear();
-        rSamples.clear();
-        gSamples.clear();
-        bSamples.clear();
-
-        // Create a working buffer for effects processing (6 channels: XYZRGB)
-        tempBuffer.setSize(6, numSamples, false, true, false);
-        
-        // Copy input channels to temp buffer
-        for (int ch = 0; ch < juce::jmin(6, numChannels); ++ch) {
-            tempBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
-        }
-        
-        // Apply effects to the entire buffer (only first 3 channels for effects)
-        juce::AudioBuffer<float> effectBuffer(tempBuffer.getArrayOfWritePointers(), 3, numSamples);
-
-        // Animate all visualiser effects (audio + shader)
-        for (auto &effect : parameters.audioEffects)
-            effect->animateValues(numSamples, nullptr);
-        for (auto &effect : parameters.effects)
-            effect->animateValues(numSamples, nullptr);
-
-        // Apply external modulation (LFO/ENV) to animated buffers
-        if (parameters.applyExternalModulation)
-            parameters.applyExternalModulation(numSamples);
-
-        // For shader effects, publish modulated values to actualValues
-        for (auto &effect : parameters.effects)
-            effect->publishAnimatedToActual(numSamples);
-
-        // Process audio effects (reads modulated animated buffer, transforms audio)
-        for (auto &effect : parameters.audioEffects)
-            effect->processBlock(effectBuffer, midiMessages);
-
-#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-        // Apply horizontal/vertical flip to the entire buffer
-        if (parameters.isFlippedHorizontal()) {
-            juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(0), tempBuffer.getReadPointer(0), numSamples);
-        }
-        if (parameters.isFlippedVertical()) {
-            juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(1), tempBuffer.getReadPointer(1), numSamples);
-        }
-#endif
-
-        auto mode = renderMode.load();
-        
-        // Get array of read pointers for all 6 channels (XYZRGB)
-        auto channelData = tempBuffer.getArrayOfReadPointers();
-        
+        const auto mode = renderMode.load();
         if (parameters.isSweepEnabled()) {
-            double sweepIncrement = getSweepIncrement();
-            double triggerValue = parameters.getTriggerValue();
-            const int triggerChannel = juce::jlimit(0, juce::jmax(0, numChannels - 1), parameters.getTriggerSourceChannel());
-            const bool risingTrigger = parameters.isRisingTrigger();
-            bool havePreviousTriggerSample = false;
-            float previousTriggerSample = 0.0f;
-            const auto currentRenderSize = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
-            const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(currentRenderSize);
-            const double startPoint = 1.135 / worldToClipScale.x;
-
-            for (int i = 0; i < numSamples; ++i) {
-                long samplePosition = sampleCount - lastTriggerPosition;
-                float sweep = samplePosition * sweepIncrement * 2 * startPoint - startPoint;
-
-                const float triggerSample = channelData[triggerChannel][i];
-                const bool crossedTrigger = havePreviousTriggerSample
-                    && (risingTrigger
-                        ? previousTriggerSample < triggerValue && triggerSample >= triggerValue
-                        : previousTriggerSample > triggerValue && triggerSample <= triggerValue);
-
-                if (sweep > startPoint && crossedTrigger) {
-                    lastTriggerPosition = sampleCount;
-                }
-
-                previousTriggerSample = triggerSample;
-                havePreviousTriggerSample = true;
-
-                xSamples.push_back(sweep);
-                ySamples.push_back(channelData[0][i]);
-                if (mode == RenderMode::XYZ) {
-                    zSamples.push_back(1.0f); // legacy: third component treated as brightness
-                } else if (mode == RenderMode::XYRGB) {
-                    // no colour specified — sentinel -1 flows through
-                    rSamples.push_back(numChannels > 3 ? channelData[3][i] : -1.0f);
-                    gSamples.push_back(numChannels > 4 ? channelData[4][i] : -1.0f);
-                    bSamples.push_back(numChannels > 5 ? channelData[5][i] : -1.0f);
-                }
-
-                sampleCount++;
-            }
+            buildSweepSamples(buffer.getNumSamples(), buffer.getNumChannels(), mode);
         } else {
-            // Helper lambda to copy channel data or fill with default value
-            auto copyOrFillChannel = [&](std::vector<float>& dest, int channelIndex, float defaultValue) {
-                dest.resize(numSamples);
-                if (numChannels > channelIndex) {
-                    juce::FloatVectorOperations::copy(dest.data(), channelData[channelIndex], numSamples);
-                } else {
-                    juce::FloatVectorOperations::fill(dest.data(), defaultValue, numSamples);
-                }
-            };
-            
-#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-            if (parameters.isGoniometer()) {
-                // x and y go to a diagonal currently, so we need to scale them down, and rotate them
-                const float xScale = -1.0f / std::sqrt(2.0f);
-                const float yScale = 1.0f / std::sqrt(2.0f);
-                const float rotationAngle = -juce::MathConstants<float>::pi / 4.0f;
-                const float cosAngle = std::cos(rotationAngle);
-                const float sinAngle = std::sin(rotationAngle);
-                
-                // Resize output vectors to hold all samples
-                xSamples.resize(numSamples);
-                ySamples.resize(numSamples);
-                
-                // Create temporary buffers for scaled values
-                std::vector<float> scaledX(numSamples);
-                std::vector<float> scaledY(numSamples);
-                
-                // Scale X and Y channels
-                juce::FloatVectorOperations::copyWithMultiply(scaledX.data(), channelData[0], xScale, numSamples);
-                juce::FloatVectorOperations::copyWithMultiply(scaledY.data(), channelData[1], yScale, numSamples);
-                
-                // Apply rotation: rotatedX = scaledX * cosAngle - scaledY * sinAngle
-                juce::FloatVectorOperations::copyWithMultiply(xSamples.data(), scaledX.data(), cosAngle, numSamples);
-                juce::FloatVectorOperations::addWithMultiply(xSamples.data(), scaledY.data(), -sinAngle, numSamples);
-                
-                // Apply rotation: rotatedY = scaledX * sinAngle + scaledY * cosAngle
-                juce::FloatVectorOperations::copyWithMultiply(ySamples.data(), scaledX.data(), sinAngle, numSamples);
-                juce::FloatVectorOperations::addWithMultiply(ySamples.data(), scaledY.data(), cosAngle, numSamples);
-            } else
-#endif
-            {
-                // Resize output vectors to hold all samples
-                xSamples.resize(numSamples);
-                ySamples.resize(numSamples);
-                
-                // Copy X and Y channels directly
-                juce::FloatVectorOperations::copy(xSamples.data(), channelData[0], numSamples);
-                juce::FloatVectorOperations::copy(ySamples.data(), channelData[1], numSamples);
-            }
-            
-            // Handle Z/RGB channels using helper lambda
-            if (mode == RenderMode::XYZ) {
-                copyOrFillChannel(zSamples, 2, 1.0f);
-            } else if (mode == RenderMode::XYRGB) {
-                copyOrFillChannel(rSamples, 3, -1.0f);
-                copyOrFillChannel(gSamples, 4, -1.0f);
-                copyOrFillChannel(bSamples, 5, -1.0f);
-            }
+            buildXYSamples(buffer.getNumSamples(), buffer.getNumChannels(), mode);
         }
-
         sampleBufferCount++;
 
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
-        if (parameters.getUpsamplingEnabled()) {
-            const bool sweepEnabled = parameters.isSweepEnabled();
-            if (!resamplingActive || resamplingRenderMode != mode || resamplingSweep != sweepEnabled) {
-                // Channels that were inactive must restart on the same phase as the active channels.
-                for (auto* resampler : { &xResampler, &yResampler, &zResampler, &rResampler, &gResampler, &bResampler }) {
-                    resampler->reset();
-                }
-                resamplingActive = true;
-                resamplingRenderMode = mode;
-                resamplingSweep = sweepEnabled;
-            }
-
-            std::array<VisualiserResampler::Channel, 5> channels;
-            std::array<std::vector<float>*, 5> outputs;
-            size_t numChannels = 0;
-            const auto addChannel = [&](auto& resampler, const auto& input, auto& output) {
-                // Lanczos may emit one extra sample per 1024-input chunk.
-                output.resize(input.size() * (size_t) RESAMPLE_RATIO + (input.size() + 1023) / 1024);
-                channels[numChannels] = { &resampler, input.data(), output.data() };
-                outputs[numChannels++] = &output;
-            };
-            addChannel(yResampler, ySamples, smoothedYSamples);
-            if (!sweepEnabled) {
-                addChannel(xResampler, xSamples, smoothedXSamples);
-            }
-            if (mode == RenderMode::XYZ) {
-                addChannel(zResampler, zSamples, smoothedZSamples);
-            } else if (mode == RenderMode::XYRGB) {
-                addChannel(rResampler, rSamples, smoothedRSamples);
-                addChannel(gResampler, gSamples, smoothedGSamples);
-                addChannel(bResampler, bSamples, smoothedBSamples);
-            }
-            const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size());
-            for (size_t channel = 0; channel < numChannels; ++channel) {
-                outputs[channel]->resize(count);
-            }
-            if (sweepEnabled) {
-                smoothedXSamples.resize(smoothedYSamples.size());
-                // Keep sweep resets sharp rather than filtering across them.
-                for (int i = 0; i < (int) smoothedXSamples.size(); ++i) {
-                    const int index = std::min(i / (int) RESAMPLE_RATIO, (int) xSamples.size() - 1);
-                    if (index < (int) xSamples.size() - 1) {
-                        const double thisSample = xSamples[index];
-                        const double nextSample = xSamples[index + 1];
-                        smoothedXSamples[i] = nextSample > thisSample
-                            ? thisSample + (i % (int) RESAMPLE_RATIO) * (nextSample - thisSample) / RESAMPLE_RATIO
-                            : thisSample;
-                    } else {
-                        smoothedXSamples[i] = xSamples[index];
-                    }
-                }
-            }
-        } else {
-            resamplingActive = false;
-        }
+        upsampleSamples(mode);
 #endif
     }
 
@@ -398,6 +190,233 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
         juce::Logger::writeToLog(info);
     }
 }
+
+void VisualiserRenderer::processInputBuffer(const juce::AudioBuffer<float>& buffer) {
+    const int numSamples = buffer.getNumSamples();
+    const int numChannels = buffer.getNumChannels();
+
+    // copy the buffer before applying effects
+    audioOutputBuffer.setSize(2, numSamples, false, true, true);
+    audioOutputBuffer.copyFrom(0, 0, buffer, 0, 0, numSamples);
+    audioOutputBuffer.copyFrom(1, 0, buffer, 1, 0, numSamples);
+
+    xSamples.clear();
+    ySamples.clear();
+    zSamples.clear();
+    rSamples.clear();
+    gSamples.clear();
+    bSamples.clear();
+
+    // Create a working buffer for effects processing (6 channels: XYZRGB)
+    tempBuffer.setSize(6, numSamples, false, true, false);
+
+    // Copy input channels to temp buffer
+    for (int ch = 0; ch < juce::jmin(6, numChannels); ++ch) {
+        tempBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
+    }
+
+    // Apply effects to the entire buffer (only first 3 channels for effects)
+    juce::AudioBuffer<float> effectBuffer(tempBuffer.getArrayOfWritePointers(), 3, numSamples);
+
+    // Animate all visualiser effects (audio + shader)
+    for (auto&effect : parameters.audioEffects) {
+        effect->animateValues(numSamples, nullptr);
+    }
+    for (auto&effect : parameters.effects) {
+        effect->animateValues(numSamples, nullptr);
+    }
+
+    // Apply external modulation (LFO/ENV) to animated buffers
+    if (parameters.applyExternalModulation) {
+        parameters.applyExternalModulation(numSamples);
+    }
+
+    // For shader effects, publish modulated values to actualValues
+    for (auto&effect : parameters.effects) {
+        effect->publishAnimatedToActual(numSamples);
+    }
+
+    // Process audio effects (reads modulated animated buffer, transforms audio)
+    for (auto&effect : parameters.audioEffects) {
+        effect->processBlock(effectBuffer, midiMessages);
+    }
+
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    // Apply horizontal/vertical flip to the entire buffer
+    if (parameters.isFlippedHorizontal()) {
+        juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(0), tempBuffer.getReadPointer(0), numSamples);
+    }
+    if (parameters.isFlippedVertical()) {
+        juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(1), tempBuffer.getReadPointer(1), numSamples);
+    }
+#endif
+}
+
+void VisualiserRenderer::buildSweepSamples(int numSamples, int numChannels, RenderMode mode) {
+    const auto channelData = tempBuffer.getArrayOfReadPointers();
+    double sweepIncrement = getSweepIncrement();
+    double triggerValue = parameters.getTriggerValue();
+    const int triggerChannel = juce::jlimit(0, juce::jmax(0, numChannels - 1), parameters.getTriggerSourceChannel());
+    const bool risingTrigger = parameters.isRisingTrigger();
+    bool havePreviousTriggerSample = false;
+    float previousTriggerSample = 0.0f;
+    const auto currentRenderSize = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
+    const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(currentRenderSize);
+    const double startPoint = 1.135 / worldToClipScale.x;
+
+    for (int i = 0; i < numSamples; ++i) {
+        long samplePosition = sampleCount - lastTriggerPosition;
+        float sweep = samplePosition * sweepIncrement * 2 * startPoint - startPoint;
+
+        const float triggerSample = channelData[triggerChannel][i];
+        const bool crossedTrigger = havePreviousTriggerSample
+            && (risingTrigger
+                ? previousTriggerSample < triggerValue && triggerSample >= triggerValue
+                : previousTriggerSample > triggerValue && triggerSample <= triggerValue);
+
+        if (sweep > startPoint && crossedTrigger) {
+            lastTriggerPosition = sampleCount;
+        }
+
+        previousTriggerSample = triggerSample;
+        havePreviousTriggerSample = true;
+
+        xSamples.push_back(sweep);
+        ySamples.push_back(channelData[0][i]);
+        if (mode == RenderMode::XYZ) {
+            zSamples.push_back(1.0f); // legacy: third component treated as brightness
+        } else if (mode == RenderMode::XYRGB) {
+            // no colour specified — sentinel -1 flows through
+            rSamples.push_back(numChannels > 3 ? channelData[3][i] : -1.0f);
+            gSamples.push_back(numChannels > 4 ? channelData[4][i] : -1.0f);
+            bSamples.push_back(numChannels > 5 ? channelData[5][i] : -1.0f);
+        }
+
+        sampleCount++;
+    }
+}
+
+void VisualiserRenderer::buildXYSamples(int numSamples, int numChannels, RenderMode mode) {
+    const auto channelData = tempBuffer.getArrayOfReadPointers();
+    // Helper lambda to copy channel data or fill with default value
+    auto copyOrFillChannel = [&](std::vector<float>& dest, int channelIndex, float defaultValue) {
+        dest.resize(numSamples);
+        if (numChannels > channelIndex) {
+            juce::FloatVectorOperations::copy(dest.data(), channelData[channelIndex], numSamples);
+        } else {
+            juce::FloatVectorOperations::fill(dest.data(), defaultValue, numSamples);
+        }
+    };
+
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    if (parameters.isGoniometer()) {
+        // x and y go to a diagonal currently, so we need to scale them down, and rotate them
+        const float xScale = -1.0f / std::sqrt(2.0f);
+        const float yScale = 1.0f / std::sqrt(2.0f);
+        const float rotationAngle = -juce::MathConstants<float>::pi / 4.0f;
+        const float cosAngle = std::cos(rotationAngle);
+        const float sinAngle = std::sin(rotationAngle);
+
+        // Resize output vectors to hold all samples
+        xSamples.resize(numSamples);
+        ySamples.resize(numSamples);
+
+        // Create temporary buffers for scaled values
+        std::vector<float> scaledX(numSamples);
+        std::vector<float> scaledY(numSamples);
+
+        // Scale X and Y channels
+        juce::FloatVectorOperations::copyWithMultiply(scaledX.data(), channelData[0], xScale, numSamples);
+        juce::FloatVectorOperations::copyWithMultiply(scaledY.data(), channelData[1], yScale, numSamples);
+
+        // Apply rotation: rotatedX = scaledX * cosAngle - scaledY * sinAngle
+        juce::FloatVectorOperations::copyWithMultiply(xSamples.data(), scaledX.data(), cosAngle, numSamples);
+        juce::FloatVectorOperations::addWithMultiply(xSamples.data(), scaledY.data(), -sinAngle, numSamples);
+
+        // Apply rotation: rotatedY = scaledX * sinAngle + scaledY * cosAngle
+        juce::FloatVectorOperations::copyWithMultiply(ySamples.data(), scaledX.data(), sinAngle, numSamples);
+        juce::FloatVectorOperations::addWithMultiply(ySamples.data(), scaledY.data(), cosAngle, numSamples);
+    } else
+#endif
+    {
+        // Resize output vectors to hold all samples
+        xSamples.resize(numSamples);
+        ySamples.resize(numSamples);
+
+        // Copy X and Y channels directly
+        juce::FloatVectorOperations::copy(xSamples.data(), channelData[0], numSamples);
+        juce::FloatVectorOperations::copy(ySamples.data(), channelData[1], numSamples);
+    }
+
+    // Handle Z/RGB channels using helper lambda
+    if (mode == RenderMode::XYZ) {
+        copyOrFillChannel(zSamples, 2, 1.0f);
+    } else if (mode == RenderMode::XYRGB) {
+        copyOrFillChannel(rSamples, 3, -1.0f);
+        copyOrFillChannel(gSamples, 4, -1.0f);
+        copyOrFillChannel(bSamples, 5, -1.0f);
+    }
+}
+
+#if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
+void VisualiserRenderer::upsampleSamples(RenderMode mode) {
+    if (parameters.getUpsamplingEnabled()) {
+        const bool sweepEnabled = parameters.isSweepEnabled();
+        if (!resamplingActive || resamplingRenderMode != mode || resamplingSweep != sweepEnabled) {
+            // Channels that were inactive must restart on the same phase as the active channels.
+            for (auto* resampler : { &xResampler, &yResampler, &zResampler, &rResampler, &gResampler, &bResampler }) {
+                resampler->reset();
+            }
+            resamplingActive = true;
+            resamplingRenderMode = mode;
+            resamplingSweep = sweepEnabled;
+        }
+
+        std::array<VisualiserResampler::Channel, 5> channels;
+        std::array<std::vector<float>*, 5> outputs;
+        size_t numChannels = 0;
+        const auto addChannel = [&](auto& resampler, const auto& input, auto& output) {
+            // Lanczos may emit one extra sample per 1024-input chunk.
+            output.resize(input.size() * (size_t) RESAMPLE_RATIO + (input.size() + 1023) / 1024);
+            channels[numChannels] = { &resampler, input.data(), output.data() };
+            outputs[numChannels++] = &output;
+        };
+        addChannel(yResampler, ySamples, smoothedYSamples);
+        if (!sweepEnabled) {
+            addChannel(xResampler, xSamples, smoothedXSamples);
+        }
+        if (mode == RenderMode::XYZ) {
+            addChannel(zResampler, zSamples, smoothedZSamples);
+        } else if (mode == RenderMode::XYRGB) {
+            addChannel(rResampler, rSamples, smoothedRSamples);
+            addChannel(gResampler, gSamples, smoothedGSamples);
+            addChannel(bResampler, bSamples, smoothedBSamples);
+        }
+        const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size());
+        for (size_t channel = 0; channel < numChannels; ++channel) {
+            outputs[channel]->resize(count);
+        }
+        if (sweepEnabled) {
+            smoothedXSamples.resize(smoothedYSamples.size());
+            // Keep sweep resets sharp rather than filtering across them.
+            for (int i = 0; i < (int) smoothedXSamples.size(); ++i) {
+                const int index = std::min(i / (int) RESAMPLE_RATIO, (int) xSamples.size() - 1);
+                if (index < (int) xSamples.size() - 1) {
+                    const double thisSample = xSamples[index];
+                    const double nextSample = xSamples[index + 1];
+                    smoothedXSamples[i] = nextSample > thisSample
+                        ? thisSample + (i % (int) RESAMPLE_RATIO) * (nextSample - thisSample) / RESAMPLE_RATIO
+                        : thisSample;
+                } else {
+                    smoothedXSamples[i] = xSamples[index];
+                }
+            }
+        }
+    } else {
+        resamplingActive = false;
+    }
+}
+#endif
 
 int VisualiserRenderer::prepareTask(double sampleRate, int bufferSize) {
     this->sampleRate = sampleRate;

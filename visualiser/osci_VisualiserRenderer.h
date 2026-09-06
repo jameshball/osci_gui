@@ -91,6 +91,14 @@ protected:
 
     juce::AudioBuffer<float> audioOutputBuffer;
 private:
+    // Called by runTask while samplesLock is held.
+    void processInputBuffer(const juce::AudioBuffer<float>& buffer);
+    void buildSweepSamples(int numSamples, int numChannels, RenderMode mode);
+    void buildXYSamples(int numSamples, int numChannels, RenderMode mode);
+#if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
+    void upsampleSamples(RenderMode mode);
+#endif
+
     juce::Rectangle<int> viewportArea;
     std::optional<juce::Rectangle<float>> cropRectangle;
 
