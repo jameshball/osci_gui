@@ -91,6 +91,14 @@ protected:
 
     juce::AudioBuffer<float> audioOutputBuffer;
 private:
+    // Called by runTask while samplesLock is held.
+    void processInputBuffer(const juce::AudioBuffer<float>& buffer);
+    void buildSweepSamples(int numSamples, int numChannels, RenderMode mode);
+    void buildXYSamples(int numSamples, int numChannels, RenderMode mode);
+#if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
+    void upsampleSamples(RenderMode mode);
+#endif
+
     juce::Rectangle<int> viewportArea;
     std::optional<juce::Rectangle<float>> cropRectangle;
 
@@ -98,7 +106,9 @@ private:
     GLuint quadIndexBuffer = 0;
     GLuint vertexIndexBuffer = 0;
     GLuint vertexBuffer = 0;
-    GLuint colorBuffer = 0; // buffer for per-vertex RGB colours
+    std::vector<float> linePointData;
+    std::decay_t<decltype(juce::gl::glVertexAttribDivisor)> setLineAttributeDivisor = nullptr;
+    std::decay_t<decltype(juce::gl::glDrawElementsInstanced)> drawLineInstances = nullptr;
 
     int nEdges = 0;
 
@@ -130,7 +140,7 @@ private:
     juce::AudioBuffer<float> tempBuffer = juce::AudioBuffer<float>(6, 1);
     juce::MidiBuffer midiMessages;
 
-    std::vector<float> scratchVertices;
+    std::atomic<bool> arraysReady {false};
     std::vector<float> fullScreenQuad;
 
     GLuint frameBuffer = 0;
@@ -199,13 +209,17 @@ private:
     double sampleRate = -1;
     double oldSampleRate = -1;
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> xResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> yResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> zResampler;
+    using VisualiserResampler = chowdsp::ResamplingTypes::LanczosResampler<2048, 8>;
+    bool resamplingActive = false;
+    bool resamplingSweep = false;
+    RenderMode resamplingRenderMode = RenderMode::XYRGB;
+    VisualiserResampler xResampler;
+    VisualiserResampler yResampler;
+    VisualiserResampler zResampler;
     // Dedicated colour channel resamplers to maintain independent filter state per channel
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> rResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> gResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> bResampler;
+    VisualiserResampler rResampler;
+    VisualiserResampler gResampler;
+    VisualiserResampler bResampler;
 #endif
     std::atomic<RenderMode> renderMode { RenderMode::XYRGB };
 

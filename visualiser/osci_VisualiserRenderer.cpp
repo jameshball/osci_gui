@@ -154,211 +154,18 @@ void VisualiserRenderer::setAssets(VisualiserRendererAssets newAssets) {
 void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
     {
         juce::CriticalSection::ScopedLockType lock(samplesLock);
+        processInputBuffer(buffer);
 
-        const int numSamples = buffer.getNumSamples();
-        const int numChannels = buffer.getNumChannels();
-
-        // copy the buffer before applying effects
-        audioOutputBuffer.setSize(2, numSamples, false, true, true);
-        audioOutputBuffer.copyFrom(0, 0, buffer, 0, 0, numSamples);
-        audioOutputBuffer.copyFrom(1, 0, buffer, 1, 0, numSamples);
-
-        xSamples.clear();
-        ySamples.clear();
-        zSamples.clear();
-        rSamples.clear();
-        gSamples.clear();
-        bSamples.clear();
-
-        // Create a working buffer for effects processing (6 channels: XYZRGB)
-        tempBuffer.setSize(6, numSamples, false, true, false);
-        
-        // Copy input channels to temp buffer
-        for (int ch = 0; ch < juce::jmin(6, numChannels); ++ch) {
-            tempBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
-        }
-        
-        // Apply effects to the entire buffer (only first 3 channels for effects)
-        juce::AudioBuffer<float> effectBuffer(tempBuffer.getArrayOfWritePointers(), 3, numSamples);
-
-        // Animate all visualiser effects (audio + shader)
-        for (auto &effect : parameters.audioEffects)
-            effect->animateValues(numSamples, nullptr);
-        for (auto &effect : parameters.effects)
-            effect->animateValues(numSamples, nullptr);
-
-        // Apply external modulation (LFO/ENV) to animated buffers
-        if (parameters.applyExternalModulation)
-            parameters.applyExternalModulation(numSamples);
-
-        // For shader effects, publish modulated values to actualValues
-        for (auto &effect : parameters.effects)
-            effect->publishAnimatedToActual(numSamples);
-
-        // Process audio effects (reads modulated animated buffer, transforms audio)
-        for (auto &effect : parameters.audioEffects)
-            effect->processBlock(effectBuffer, midiMessages);
-
-#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-        // Apply horizontal/vertical flip to the entire buffer
-        if (parameters.isFlippedHorizontal()) {
-            juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(0), tempBuffer.getReadPointer(0), numSamples);
-        }
-        if (parameters.isFlippedVertical()) {
-            juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(1), tempBuffer.getReadPointer(1), numSamples);
-        }
-#endif
-
-        auto mode = renderMode.load();
-        
-        // Get array of read pointers for all 6 channels (XYZRGB)
-        auto channelData = tempBuffer.getArrayOfReadPointers();
-        
+        const auto mode = renderMode.load();
         if (parameters.isSweepEnabled()) {
-            double sweepIncrement = getSweepIncrement();
-            double triggerValue = parameters.getTriggerValue();
-            const int triggerChannel = juce::jlimit(0, juce::jmax(0, numChannels - 1), parameters.getTriggerSourceChannel());
-            const bool risingTrigger = parameters.isRisingTrigger();
-            bool havePreviousTriggerSample = false;
-            float previousTriggerSample = 0.0f;
-            const auto currentRenderSize = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
-            const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(currentRenderSize);
-            const double startPoint = 1.135 / worldToClipScale.x;
-
-            for (int i = 0; i < numSamples; ++i) {
-                long samplePosition = sampleCount - lastTriggerPosition;
-                float sweep = samplePosition * sweepIncrement * 2 * startPoint - startPoint;
-
-                const float triggerSample = channelData[triggerChannel][i];
-                const bool crossedTrigger = havePreviousTriggerSample
-                    && (risingTrigger
-                        ? previousTriggerSample < triggerValue && triggerSample >= triggerValue
-                        : previousTriggerSample > triggerValue && triggerSample <= triggerValue);
-
-                if (sweep > startPoint && crossedTrigger) {
-                    lastTriggerPosition = sampleCount;
-                }
-
-                previousTriggerSample = triggerSample;
-                havePreviousTriggerSample = true;
-
-                xSamples.push_back(sweep);
-                ySamples.push_back(channelData[0][i]);
-                if (mode == RenderMode::XYZ) {
-                    zSamples.push_back(1.0f); // legacy: third component treated as brightness
-                } else if (mode == RenderMode::XYRGB) {
-                    // no colour specified — sentinel -1 flows through
-                    rSamples.push_back(numChannels > 3 ? channelData[3][i] : -1.0f);
-                    gSamples.push_back(numChannels > 4 ? channelData[4][i] : -1.0f);
-                    bSamples.push_back(numChannels > 5 ? channelData[5][i] : -1.0f);
-                }
-
-                sampleCount++;
-            }
+            buildSweepSamples(buffer.getNumSamples(), buffer.getNumChannels(), mode);
         } else {
-            // Helper lambda to copy channel data or fill with default value
-            auto copyOrFillChannel = [&](std::vector<float>& dest, int channelIndex, float defaultValue) {
-                dest.resize(numSamples);
-                if (numChannels > channelIndex) {
-                    juce::FloatVectorOperations::copy(dest.data(), channelData[channelIndex], numSamples);
-                } else {
-                    juce::FloatVectorOperations::fill(dest.data(), defaultValue, numSamples);
-                }
-            };
-            
-#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
-            if (parameters.isGoniometer()) {
-                // x and y go to a diagonal currently, so we need to scale them down, and rotate them
-                const float xScale = -1.0f / std::sqrt(2.0f);
-                const float yScale = 1.0f / std::sqrt(2.0f);
-                const float rotationAngle = -juce::MathConstants<float>::pi / 4.0f;
-                const float cosAngle = std::cos(rotationAngle);
-                const float sinAngle = std::sin(rotationAngle);
-                
-                // Resize output vectors to hold all samples
-                xSamples.resize(numSamples);
-                ySamples.resize(numSamples);
-                
-                // Create temporary buffers for scaled values
-                std::vector<float> scaledX(numSamples);
-                std::vector<float> scaledY(numSamples);
-                
-                // Scale X and Y channels
-                juce::FloatVectorOperations::copyWithMultiply(scaledX.data(), channelData[0], xScale, numSamples);
-                juce::FloatVectorOperations::copyWithMultiply(scaledY.data(), channelData[1], yScale, numSamples);
-                
-                // Apply rotation: rotatedX = scaledX * cosAngle - scaledY * sinAngle
-                juce::FloatVectorOperations::copyWithMultiply(xSamples.data(), scaledX.data(), cosAngle, numSamples);
-                juce::FloatVectorOperations::addWithMultiply(xSamples.data(), scaledY.data(), -sinAngle, numSamples);
-                
-                // Apply rotation: rotatedY = scaledX * sinAngle + scaledY * cosAngle
-                juce::FloatVectorOperations::copyWithMultiply(ySamples.data(), scaledX.data(), sinAngle, numSamples);
-                juce::FloatVectorOperations::addWithMultiply(ySamples.data(), scaledY.data(), cosAngle, numSamples);
-            } else
-#endif
-            {
-                // Resize output vectors to hold all samples
-                xSamples.resize(numSamples);
-                ySamples.resize(numSamples);
-                
-                // Copy X and Y channels directly
-                juce::FloatVectorOperations::copy(xSamples.data(), channelData[0], numSamples);
-                juce::FloatVectorOperations::copy(ySamples.data(), channelData[1], numSamples);
-            }
-            
-            // Handle Z/RGB channels using helper lambda
-            if (mode == RenderMode::XYZ) {
-                copyOrFillChannel(zSamples, 2, 1.0f);
-            } else if (mode == RenderMode::XYRGB) {
-                copyOrFillChannel(rSamples, 3, -1.0f);
-                copyOrFillChannel(gSamples, 4, -1.0f);
-                copyOrFillChannel(bSamples, 5, -1.0f);
-            }
+            buildXYSamples(buffer.getNumSamples(), buffer.getNumChannels(), mode);
         }
-
         sampleBufferCount++;
 
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
-        if (parameters.getUpsamplingEnabled()) {
-            int newResampledSize = xSamples.size() * RESAMPLE_RATIO;
-
-            smoothedXSamples.resize(newResampledSize);
-            smoothedYSamples.resize(newResampledSize);
-            if (mode == RenderMode::XYZ) smoothedZSamples.resize(newResampledSize);
-            if (mode == RenderMode::XYRGB) {
-                smoothedRSamples.resize(newResampledSize);
-                smoothedGSamples.resize(newResampledSize);
-                smoothedBSamples.resize(newResampledSize);
-            }
-
-            if (parameters.isSweepEnabled()) {
-                // interpolate between sweep values to avoid any artifacts from quickly going from one sweep to the next
-                for (int i = 0; i < newResampledSize; ++i) {
-                    int index = i / RESAMPLE_RATIO;
-                    if (index < xSamples.size() - 1) {
-                        double thisSample = xSamples[index];
-                        double nextSample = xSamples[index + 1];
-                        if (nextSample > thisSample) {
-                            smoothedXSamples[i] = xSamples[index] + (i % (int)RESAMPLE_RATIO) * (nextSample - thisSample) / RESAMPLE_RATIO;
-                        } else {
-                            smoothedXSamples[i] = xSamples[index];
-                        }
-                    } else {
-                        smoothedXSamples[i] = xSamples[index];
-                    }
-                }
-            } else {
-                xResampler.process(xSamples.data(), smoothedXSamples.data(), (int) xSamples.size());
-            }
-            yResampler.process(ySamples.data(), smoothedYSamples.data(), (int) ySamples.size());
-            if (mode == RenderMode::XYZ) {
-                if (!zSamples.empty()) zResampler.process(zSamples.data(), smoothedZSamples.data(), (int) zSamples.size());
-            } else if (mode == RenderMode::XYRGB) {
-                if (!rSamples.empty()) rResampler.process(rSamples.data(), smoothedRSamples.data(), (int) rSamples.size());
-                if (!gSamples.empty()) gResampler.process(gSamples.data(), smoothedGSamples.data(), (int) gSamples.size());
-                if (!bSamples.empty()) bResampler.process(bSamples.data(), smoothedBSamples.data(), (int) bSamples.size());
-            }
-        }
+        upsampleSamples(mode);
 #endif
     }
 
@@ -383,6 +190,233 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
         juce::Logger::writeToLog(info);
     }
 }
+
+void VisualiserRenderer::processInputBuffer(const juce::AudioBuffer<float>& buffer) {
+    const int numSamples = buffer.getNumSamples();
+    const int numChannels = buffer.getNumChannels();
+
+    // copy the buffer before applying effects
+    audioOutputBuffer.setSize(2, numSamples, false, true, true);
+    audioOutputBuffer.copyFrom(0, 0, buffer, 0, 0, numSamples);
+    audioOutputBuffer.copyFrom(1, 0, buffer, 1, 0, numSamples);
+
+    xSamples.clear();
+    ySamples.clear();
+    zSamples.clear();
+    rSamples.clear();
+    gSamples.clear();
+    bSamples.clear();
+
+    // Create a working buffer for effects processing (6 channels: XYZRGB)
+    tempBuffer.setSize(6, numSamples, false, true, false);
+
+    // Copy input channels to temp buffer
+    for (int ch = 0; ch < juce::jmin(6, numChannels); ++ch) {
+        tempBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
+    }
+
+    // Apply effects to the entire buffer (only first 3 channels for effects)
+    juce::AudioBuffer<float> effectBuffer(tempBuffer.getArrayOfWritePointers(), 3, numSamples);
+
+    // Animate all visualiser effects (audio + shader)
+    for (auto&effect : parameters.audioEffects) {
+        effect->animateValues(numSamples, nullptr);
+    }
+    for (auto&effect : parameters.effects) {
+        effect->animateValues(numSamples, nullptr);
+    }
+
+    // Apply external modulation (LFO/ENV) to animated buffers
+    if (parameters.applyExternalModulation) {
+        parameters.applyExternalModulation(numSamples);
+    }
+
+    // For shader effects, publish modulated values to actualValues
+    for (auto&effect : parameters.effects) {
+        effect->publishAnimatedToActual(numSamples);
+    }
+
+    // Process audio effects (reads modulated animated buffer, transforms audio)
+    for (auto&effect : parameters.audioEffects) {
+        effect->processBlock(effectBuffer, midiMessages);
+    }
+
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    // Apply horizontal/vertical flip to the entire buffer
+    if (parameters.isFlippedHorizontal()) {
+        juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(0), tempBuffer.getReadPointer(0), numSamples);
+    }
+    if (parameters.isFlippedVertical()) {
+        juce::FloatVectorOperations::negate(tempBuffer.getWritePointer(1), tempBuffer.getReadPointer(1), numSamples);
+    }
+#endif
+}
+
+void VisualiserRenderer::buildSweepSamples(int numSamples, int numChannels, RenderMode mode) {
+    const auto channelData = tempBuffer.getArrayOfReadPointers();
+    double sweepIncrement = getSweepIncrement();
+    double triggerValue = parameters.getTriggerValue();
+    const int triggerChannel = juce::jlimit(0, juce::jmax(0, numChannels - 1), parameters.getTriggerSourceChannel());
+    const bool risingTrigger = parameters.isRisingTrigger();
+    bool havePreviousTriggerSample = false;
+    float previousTriggerSample = 0.0f;
+    const auto currentRenderSize = VisualiserGeometry::unpackRenderSize(packedRenderSize.load());
+    const auto worldToClipScale = VisualiserGeometry::getWorldToClipScale(currentRenderSize);
+    const double startPoint = 1.135 / worldToClipScale.x;
+
+    for (int i = 0; i < numSamples; ++i) {
+        long samplePosition = sampleCount - lastTriggerPosition;
+        float sweep = samplePosition * sweepIncrement * 2 * startPoint - startPoint;
+
+        const float triggerSample = channelData[triggerChannel][i];
+        const bool crossedTrigger = havePreviousTriggerSample
+            && (risingTrigger
+                ? previousTriggerSample < triggerValue && triggerSample >= triggerValue
+                : previousTriggerSample > triggerValue && triggerSample <= triggerValue);
+
+        if (sweep > startPoint && crossedTrigger) {
+            lastTriggerPosition = sampleCount;
+        }
+
+        previousTriggerSample = triggerSample;
+        havePreviousTriggerSample = true;
+
+        xSamples.push_back(sweep);
+        ySamples.push_back(channelData[0][i]);
+        if (mode == RenderMode::XYZ) {
+            zSamples.push_back(1.0f); // legacy: third component treated as brightness
+        } else if (mode == RenderMode::XYRGB) {
+            // no colour specified — sentinel -1 flows through
+            rSamples.push_back(numChannels > 3 ? channelData[3][i] : -1.0f);
+            gSamples.push_back(numChannels > 4 ? channelData[4][i] : -1.0f);
+            bSamples.push_back(numChannels > 5 ? channelData[5][i] : -1.0f);
+        }
+
+        sampleCount++;
+    }
+}
+
+void VisualiserRenderer::buildXYSamples(int numSamples, int numChannels, RenderMode mode) {
+    const auto channelData = tempBuffer.getArrayOfReadPointers();
+    // Helper lambda to copy channel data or fill with default value
+    auto copyOrFillChannel = [&](std::vector<float>& dest, int channelIndex, float defaultValue) {
+        dest.resize(numSamples);
+        if (numChannels > channelIndex) {
+            juce::FloatVectorOperations::copy(dest.data(), channelData[channelIndex], numSamples);
+        } else {
+            juce::FloatVectorOperations::fill(dest.data(), defaultValue, numSamples);
+        }
+    };
+
+#if OSCI_GUI_ENABLE_ADVANCED_VISUALISER_FEATURES
+    if (parameters.isGoniometer()) {
+        // x and y go to a diagonal currently, so we need to scale them down, and rotate them
+        const float xScale = -1.0f / std::sqrt(2.0f);
+        const float yScale = 1.0f / std::sqrt(2.0f);
+        const float rotationAngle = -juce::MathConstants<float>::pi / 4.0f;
+        const float cosAngle = std::cos(rotationAngle);
+        const float sinAngle = std::sin(rotationAngle);
+
+        // Resize output vectors to hold all samples
+        xSamples.resize(numSamples);
+        ySamples.resize(numSamples);
+
+        // Create temporary buffers for scaled values
+        std::vector<float> scaledX(numSamples);
+        std::vector<float> scaledY(numSamples);
+
+        // Scale X and Y channels
+        juce::FloatVectorOperations::copyWithMultiply(scaledX.data(), channelData[0], xScale, numSamples);
+        juce::FloatVectorOperations::copyWithMultiply(scaledY.data(), channelData[1], yScale, numSamples);
+
+        // Apply rotation: rotatedX = scaledX * cosAngle - scaledY * sinAngle
+        juce::FloatVectorOperations::copyWithMultiply(xSamples.data(), scaledX.data(), cosAngle, numSamples);
+        juce::FloatVectorOperations::addWithMultiply(xSamples.data(), scaledY.data(), -sinAngle, numSamples);
+
+        // Apply rotation: rotatedY = scaledX * sinAngle + scaledY * cosAngle
+        juce::FloatVectorOperations::copyWithMultiply(ySamples.data(), scaledX.data(), sinAngle, numSamples);
+        juce::FloatVectorOperations::addWithMultiply(ySamples.data(), scaledY.data(), cosAngle, numSamples);
+    } else
+#endif
+    {
+        // Resize output vectors to hold all samples
+        xSamples.resize(numSamples);
+        ySamples.resize(numSamples);
+
+        // Copy X and Y channels directly
+        juce::FloatVectorOperations::copy(xSamples.data(), channelData[0], numSamples);
+        juce::FloatVectorOperations::copy(ySamples.data(), channelData[1], numSamples);
+    }
+
+    // Handle Z/RGB channels using helper lambda
+    if (mode == RenderMode::XYZ) {
+        copyOrFillChannel(zSamples, 2, 1.0f);
+    } else if (mode == RenderMode::XYRGB) {
+        copyOrFillChannel(rSamples, 3, -1.0f);
+        copyOrFillChannel(gSamples, 4, -1.0f);
+        copyOrFillChannel(bSamples, 5, -1.0f);
+    }
+}
+
+#if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
+void VisualiserRenderer::upsampleSamples(RenderMode mode) {
+    if (parameters.getUpsamplingEnabled()) {
+        const bool sweepEnabled = parameters.isSweepEnabled();
+        if (!resamplingActive || resamplingRenderMode != mode || resamplingSweep != sweepEnabled) {
+            // Channels that were inactive must restart on the same phase as the active channels.
+            for (auto* resampler : { &xResampler, &yResampler, &zResampler, &rResampler, &gResampler, &bResampler }) {
+                resampler->reset();
+            }
+            resamplingActive = true;
+            resamplingRenderMode = mode;
+            resamplingSweep = sweepEnabled;
+        }
+
+        std::array<VisualiserResampler::Channel, 5> channels;
+        std::array<std::vector<float>*, 5> outputs;
+        size_t numChannels = 0;
+        const auto addChannel = [&](auto& resampler, const auto& input, auto& output) {
+            // Lanczos may emit one extra sample per 1024-input chunk.
+            output.resize(input.size() * (size_t) RESAMPLE_RATIO + (input.size() + 1023) / 1024);
+            channels[numChannels] = { &resampler, input.data(), output.data() };
+            outputs[numChannels++] = &output;
+        };
+        addChannel(yResampler, ySamples, smoothedYSamples);
+        if (!sweepEnabled) {
+            addChannel(xResampler, xSamples, smoothedXSamples);
+        }
+        if (mode == RenderMode::XYZ) {
+            addChannel(zResampler, zSamples, smoothedZSamples);
+        } else if (mode == RenderMode::XYRGB) {
+            addChannel(rResampler, rSamples, smoothedRSamples);
+            addChannel(gResampler, gSamples, smoothedGSamples);
+            addChannel(bResampler, bSamples, smoothedBSamples);
+        }
+        const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size());
+        for (size_t channel = 0; channel < numChannels; ++channel) {
+            outputs[channel]->resize(count);
+        }
+        if (sweepEnabled) {
+            smoothedXSamples.resize(smoothedYSamples.size());
+            // Keep sweep resets sharp rather than filtering across them.
+            for (int i = 0; i < (int) smoothedXSamples.size(); ++i) {
+                const int index = std::min(i / (int) RESAMPLE_RATIO, (int) xSamples.size() - 1);
+                if (index < (int) xSamples.size() - 1) {
+                    const double thisSample = xSamples[index];
+                    const double nextSample = xSamples[index + 1];
+                    smoothedXSamples[i] = nextSample > thisSample
+                        ? thisSample + (i % (int) RESAMPLE_RATIO) * (nextSample - thisSample) / RESAMPLE_RATIO
+                        : thisSample;
+                } else {
+                    smoothedXSamples[i] = xSamples[index];
+                }
+            }
+        }
+    } else {
+        resamplingActive = false;
+    }
+}
+#endif
 
 int VisualiserRenderer::prepareTask(double sampleRate, int bufferSize) {
     this->sampleRate = sampleRate;
@@ -467,8 +501,18 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     simpleShader->addFragmentShader(simpleFragmentShader);
     simpleShader->link();
 
+    const auto languageVersion = juce::OpenGLShaderProgram::getLanguageVersion();
+    setLineAttributeDivisor = languageVersion >= 3.30 ? glVertexAttribDivisor : reinterpret_cast<decltype(setLineAttributeDivisor)>(juce::OpenGLHelpers::getExtensionFunction("glVertexAttribDivisorARB"));
+    drawLineInstances = languageVersion >= 1.50 ? glDrawElementsInstanced : reinterpret_cast<decltype(drawLineInstances)>(juce::OpenGLHelpers::getExtensionFunction("glDrawElementsInstancedARB"));
+    const bool supportsInstancing = (languageVersion >= 3.30 || juce::OpenGLHelpers::isExtensionSupported("GL_ARB_instanced_arrays"))
+        && (languageVersion >= 1.50 || juce::OpenGLHelpers::isExtensionSupported("GL_ARB_draw_instanced"));
+    if (!supportsInstancing || setLineAttributeDivisor == nullptr) {
+        drawLineInstances = nullptr;
+    }
+
     lineShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
-    lineShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(lineVertexShader));
+    const auto lineSource = juce::String("#define OSCI_INSTANCED_LINES ") + (drawLineInstances != nullptr ? "1\n" : "0\n") + juce::String(lineVertexShader);
+    lineShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(lineSource));
     lineShader->addFragmentShader(lineFragmentShader);
     lineShader->link();
 
@@ -509,7 +553,6 @@ void VisualiserRenderer::newOpenGLContextCreated() {
 #endif
 
     glGenBuffers(1, &vertexBuffer);
-    glGenBuffers(1, &colorBuffer);
     glGenBuffers(1, &quadIndexBuffer);
     glGenBuffers(1, &vertexIndexBuffer);
 
@@ -532,7 +575,6 @@ void VisualiserRenderer::openGLContextClosing() {
     glDeleteBuffers(1, &quadIndexBuffer);
     glDeleteBuffers(1, &vertexIndexBuffer);
     glDeleteBuffers(1, &vertexBuffer);
-    glDeleteBuffers(1, &colorBuffer);
     glDeleteFramebuffers(1, &frameBuffer);
     glDeleteTextures(1, &lineTexture.id);
     glDeleteTextures(1, &blur1Texture.id);
@@ -557,7 +599,7 @@ void VisualiserRenderer::openGLContextClosing() {
     outputShader.reset();
 
     // this triggers setupArrays to be called again when the scope next renders
-    scratchVertices.clear();
+    arraysReady.store(false);
     renderTexture = {};
     localRenderTexture = {};
 }
@@ -672,8 +714,12 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     }
 
     nEdges = nPoints - 1;
+    // Reserve Lanczos chunk headroom without changing the shutter normalization in nEdges.
+    const int pointsPerResamplingChunk = 1024 * static_cast<int>(RESAMPLE_RATIO);
+    const int allocatedEdges = nEdges + (nPoints + pointsPerResamplingChunk - 1) / pointsPerResamplingChunk;
 
-    std::vector<float> indices(4 * nEdges);
+    const int indexEdges = drawLineInstances != nullptr ? 1 : allocatedEdges;
+    std::vector<float> indices(4 * indexEdges);
     for (size_t i = 0; i < indices.size(); ++i) {
         indices[i] = static_cast<float>(i);
     }
@@ -682,7 +728,7 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     glBufferData(GL_ARRAY_BUFFER, indices.size() * sizeof(float), indices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind
 
-    int len = nEdges * 2 * 3;
+    int len = indexEdges * 2 * 3;
     std::vector<uint32_t> vertexIndices(len);
 
     for (int i = 0, pos = 0; i < len;) {
@@ -699,8 +745,7 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, vertexIndices.size() * sizeof(uint32_t), vertexIndices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // Unbind
 
-    // Initialize scratch vertices
-    scratchVertices.resize(12 * nPoints);
+    arraysReady.store(true);
 }
 
 void VisualiserRenderer::setupTextures(VisualiserRenderSize size) {
@@ -951,53 +996,36 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
         return;
     }
 
-    // Without this, there's an access violation that seems to occur only on some systems
-    std::vector<float> positionData(nPoints * 12);
-    std::vector<float> colorData;
-    if (mode == RenderMode::XYRGB) colorData.resize(nPoints * 12);
+    const bool instanced = drawLineInstances != nullptr;
+    const int copies = instanced ? 1 : 4;
+    const int components = mode == RenderMode::XYRGB ? 6 : 3;
+    linePointData.resize(static_cast<size_t>(nPoints) * copies * components);
 
     for (int i = 0; i < nPoints; ++i) {
-        int p = i * 12;
-        float x = xPoints[i];
-        float y = yPoints[i];
         float brightness = 1.0f;
         if (mode == RenderMode::XYZ) {
-            if (brightnessPoints != nullptr && i < (int) brightnessPoints->size()) brightness = (*brightnessPoints)[i];
-        } else if (mode == RenderMode::XYRGB) {
-            float r = rPoints[i];
-            float g = gPoints[i];
-            float b = bPoints[i];
-            if (r < 0.0f) {
-                // Sentinel: no colour specified, use full brightness and fall back to uLineColor
-                brightness = 1.0f;
-            } else {
-                brightness = std::max(r, std::max(g, b));
+            if (brightnessPoints != nullptr && i < (int)brightnessPoints->size()) {
+                brightness = (*brightnessPoints)[i];
             }
+        } else if (mode == RenderMode::XYRGB && !(rPoints[i] < 0.0f)) {
+            brightness = std::max(rPoints[i], std::max(gPoints[i], bPoints[i]));
         }
-        for (int k = 0; k < 4; ++k) {
-            positionData[p + 3 * k] = x;
-            positionData[p + 3 * k + 1] = y;
-            positionData[p + 3 * k + 2] = brightness;
+        for (int k = 0; k < copies; ++k) {
+            const auto offset = (static_cast<size_t>(i) * copies + k) * components;
+            linePointData[offset] = xPoints[i];
+            linePointData[offset + 1] = yPoints[i];
+            linePointData[offset + 2] = brightness;
             if (mode == RenderMode::XYRGB) {
-                float r = rPoints[i];
-                float g = gPoints[i];
-                float b = bPoints[i];
-                colorData[p + 3 * k] = r;
-                colorData[p + 3 * k + 1] = g;
-                colorData[p + 3 * k + 2] = b;
+                linePointData[offset + 3] = rPoints[i];
+                linePointData[offset + 4] = gPoints[i];
+                linePointData[offset + 5] = bPoints[i];
             }
         }
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-    glBufferData(GL_ARRAY_BUFFER, positionData.size() * sizeof(float), positionData.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, linePointData.size() * sizeof(float), linePointData.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    if (mode == RenderMode::XYRGB) {
-        glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-        glBufferData(GL_ARRAY_BUFFER, colorData.size() * sizeof(float), colorData.data(), GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
 
     lineShader->use();
     GLint aStartLoc = glGetAttribLocation(lineShader->getProgramID(), "aStart");
@@ -1014,16 +1042,34 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
     }
     glEnableVertexAttribArray(aIdxLoc);
 
+    const auto stride = static_cast<GLsizei>(components * sizeof(float));
+    const auto endOffset = static_cast<uintptr_t>(copies * stride);
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-    glVertexAttribPointer(aStartLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glVertexAttribPointer(aEndLoc, 3, GL_FLOAT, GL_FALSE, 0, (void *)(12 * sizeof(float)));
+    glVertexAttribPointer(aStartLoc, 3, GL_FLOAT, GL_FALSE, stride, nullptr);
+    glVertexAttribPointer(aEndLoc, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(endOffset));
     if (mode == RenderMode::XYRGB) {
-        glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-        if (aStartColorLoc >= 0) glVertexAttribPointer(aStartColorLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-        if (aEndColorLoc >= 0) glVertexAttribPointer(aEndColorLoc, 3, GL_FLOAT, GL_FALSE, 0, (void *)(12 * sizeof(float)));
+        if (aStartColorLoc >= 0) {
+            glVertexAttribPointer(aStartColorLoc, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(3 * sizeof(float)));
+        }
+        if (aEndColorLoc >= 0) {
+            glVertexAttribPointer(aEndColorLoc, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(endOffset + 3 * sizeof(float)));
+        }
     }
     glBindBuffer(GL_ARRAY_BUFFER, quadIndexBuffer);
-    glVertexAttribPointer(aIdxLoc, 1, GL_FLOAT, GL_FALSE, 0, 0);
+    glVertexAttribPointer(aIdxLoc, 1, GL_FLOAT, GL_FALSE, 0, nullptr);
+    if (instanced) {
+        setLineAttributeDivisor(aStartLoc, 1);
+        setLineAttributeDivisor(aEndLoc, 1);
+        setLineAttributeDivisor(aIdxLoc, 0);
+        if (mode == RenderMode::XYRGB) {
+            if (aStartColorLoc >= 0) {
+                setLineAttributeDivisor(aStartColorLoc, 1);
+            }
+            if (aEndColorLoc >= 0) {
+                setLineAttributeDivisor(aEndColorLoc, 1);
+            }
+        }
+    }
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, screenTexture.id);
@@ -1059,7 +1105,22 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
     int nEdgesThisTime = nPoints - 1;
-    glDrawElements(GL_TRIANGLES, nEdgesThisTime * 6, GL_UNSIGNED_INT, 0);
+    if (instanced) {
+        drawLineInstances(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, nEdgesThisTime);
+        // Other passes share attribute locations; disabling an array does not reset its divisor.
+        setLineAttributeDivisor(aStartLoc, 0);
+        setLineAttributeDivisor(aEndLoc, 0);
+        if (mode == RenderMode::XYRGB) {
+            if (aStartColorLoc >= 0) {
+                setLineAttributeDivisor(aStartColorLoc, 0);
+            }
+            if (aEndColorLoc >= 0) {
+                setLineAttributeDivisor(aEndColorLoc, 0);
+            }
+        }
+    } else {
+        glDrawElements(GL_TRIANGLES, nEdgesThisTime * 6, GL_UNSIGNED_INT, nullptr);
+    }
 
     glDisableVertexAttribArray(aStartLoc);
     glDisableVertexAttribArray(aEndLoc);
@@ -1462,7 +1523,7 @@ void VisualiserRenderer::renderScope(const std::vector<float> &xPoints, const st
         screenTexture = createScreenTexture();
     }
 
-    if (sampleRate != oldSampleRate || scratchVertices.empty()) {
+    if (sampleRate != oldSampleRate || !arraysReady.load()) {
         oldSampleRate = sampleRate;
         setupArrays(RESAMPLE_RATIO * sampleRate / frameRate);
     }

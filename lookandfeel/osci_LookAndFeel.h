@@ -334,8 +334,6 @@ public:
     int getPopupMenuBorderSize() override;
 
 protected:
-    LookAndFeel (TypefaceData typefaceData, bool shouldSetAsDefaultLookAndFeel);
-
     juce::Typeface::Ptr regularTypeface;
     juce::Typeface::Ptr boldTypeface;
     juce::Typeface::Ptr italicTypeface;

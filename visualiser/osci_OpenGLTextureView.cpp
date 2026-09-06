@@ -130,7 +130,9 @@ void OpenGLTextureView::setContextCreatedCallback(std::function<void(void*)> cal
 }
 
 void OpenGLTextureView::executeOnGLThread(std::function<void(juce::OpenGLContext&)> callback) {
-    context.executeOnGLThread(std::move(callback), false);
+    if (context.isAttached()) {
+        context.executeOnGLThread(std::move(callback), false);
+    }
 }
 
 juce::Point<int> OpenGLTextureView::getAlphaMaskSize() const {
