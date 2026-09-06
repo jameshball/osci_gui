@@ -130,7 +130,7 @@ private:
     juce::AudioBuffer<float> tempBuffer = juce::AudioBuffer<float>(6, 1);
     juce::MidiBuffer midiMessages;
 
-    std::vector<float> scratchVertices;
+    std::atomic<bool> arraysReady {false};
     std::vector<float> fullScreenQuad;
 
     GLuint frameBuffer = 0;

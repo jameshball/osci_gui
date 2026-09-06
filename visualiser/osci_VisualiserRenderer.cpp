@@ -572,7 +572,7 @@ void VisualiserRenderer::openGLContextClosing() {
     outputShader.reset();
 
     // this triggers setupArrays to be called again when the scope next renders
-    scratchVertices.clear();
+    arraysReady.store(false);
     renderTexture = {};
     localRenderTexture = {};
 }
@@ -717,8 +717,7 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, vertexIndices.size() * sizeof(uint32_t), vertexIndices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // Unbind
 
-    // Initialize scratch vertices
-    scratchVertices.resize(12 * (allocatedEdges + 1));
+    arraysReady.store(true);
 }
 
 void VisualiserRenderer::setupTextures(VisualiserRenderSize size) {
@@ -1480,7 +1479,7 @@ void VisualiserRenderer::renderScope(const std::vector<float> &xPoints, const st
         screenTexture = createScreenTexture();
     }
 
-    if (sampleRate != oldSampleRate || scratchVertices.empty()) {
+    if (sampleRate != oldSampleRate || !arraysReady.load()) {
         oldSampleRate = sampleRate;
         setupArrays(RESAMPLE_RATIO * sampleRate / frameRate);
     }
