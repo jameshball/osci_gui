@@ -98,7 +98,9 @@ private:
     GLuint quadIndexBuffer = 0;
     GLuint vertexIndexBuffer = 0;
     GLuint vertexBuffer = 0;
-    GLuint colorBuffer = 0; // buffer for per-vertex RGB colours
+    std::vector<float> linePointData;
+    std::decay_t<decltype(juce::gl::glVertexAttribDivisor)> setLineAttributeDivisor = nullptr;
+    std::decay_t<decltype(juce::gl::glDrawElementsInstanced)> drawLineInstances = nullptr;
 
     int nEdges = 0;
 

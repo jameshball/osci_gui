@@ -1,5 +1,9 @@
 std::string lineVertexShader = R"(
 
+#if OSCI_INSTANCED_LINES && __VERSION__ < 140
+#extension GL_ARB_draw_instanced : require
+#endif
+
 #define EPS 1E-6
 
 uniform float uInvert;
@@ -25,7 +29,15 @@ void main () {
     // All points in quad contain the same data:
     // segment start point and segment end point.
     // We determine point position using its index.
-    float idx = mod(aIdx,4.0);
+    float vertexIndex = aIdx;
+#if OSCI_INSTANCED_LINES
+ #if __VERSION__ >= 140
+    vertexIndex += float(gl_InstanceID) * 4.0;
+ #else
+    vertexIndex += float(gl_InstanceIDARB) * 4.0;
+ #endif
+#endif
+    float idx = mod(vertexIndex,4.0);
     
     vec2 canvasToClipScale = uWorldToClipScale;
     vec2 aStartPos = aStart.xy * uGain * canvasToClipScale;
@@ -67,7 +79,7 @@ void main () {
     float side = (mod(idx, 2.0) - 0.5) * 2.0;
     uvl.y = side * vSize;
     
-    float intensityScale = floor(aIdx / 4.0 + 0.5)/uNEdges;
+    float intensityScale = floor(vertexIndex / 4.0 + 0.5)/uNEdges;
     
     if (uShutterSync) {
         float avgIntensityScale = floor(uNEdges / 4.0 + 0.5)/uNEdges;

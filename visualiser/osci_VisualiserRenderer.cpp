@@ -482,8 +482,18 @@ void VisualiserRenderer::newOpenGLContextCreated() {
     simpleShader->addFragmentShader(simpleFragmentShader);
     simpleShader->link();
 
+    const auto languageVersion = juce::OpenGLShaderProgram::getLanguageVersion();
+    setLineAttributeDivisor = languageVersion >= 3.30 ? glVertexAttribDivisor : reinterpret_cast<decltype(setLineAttributeDivisor)>(juce::OpenGLHelpers::getExtensionFunction("glVertexAttribDivisorARB"));
+    drawLineInstances = languageVersion >= 1.50 ? glDrawElementsInstanced : reinterpret_cast<decltype(drawLineInstances)>(juce::OpenGLHelpers::getExtensionFunction("glDrawElementsInstancedARB"));
+    const bool supportsInstancing = (languageVersion >= 3.30 || juce::OpenGLHelpers::isExtensionSupported("GL_ARB_instanced_arrays"))
+        && (languageVersion >= 1.50 || juce::OpenGLHelpers::isExtensionSupported("GL_ARB_draw_instanced"));
+    if (!supportsInstancing || setLineAttributeDivisor == nullptr) {
+        drawLineInstances = nullptr;
+    }
+
     lineShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
-    lineShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(lineVertexShader));
+    const auto lineSource = juce::String("#define OSCI_INSTANCED_LINES ") + (drawLineInstances != nullptr ? "1\n" : "0\n") + juce::String(lineVertexShader);
+    lineShader->addVertexShader(juce::OpenGLHelpers::translateVertexShaderToV3(lineSource));
     lineShader->addFragmentShader(lineFragmentShader);
     lineShader->link();
 
@@ -524,7 +534,6 @@ void VisualiserRenderer::newOpenGLContextCreated() {
 #endif
 
     glGenBuffers(1, &vertexBuffer);
-    glGenBuffers(1, &colorBuffer);
     glGenBuffers(1, &quadIndexBuffer);
     glGenBuffers(1, &vertexIndexBuffer);
 
@@ -547,7 +556,6 @@ void VisualiserRenderer::openGLContextClosing() {
     glDeleteBuffers(1, &quadIndexBuffer);
     glDeleteBuffers(1, &vertexIndexBuffer);
     glDeleteBuffers(1, &vertexBuffer);
-    glDeleteBuffers(1, &colorBuffer);
     glDeleteFramebuffers(1, &frameBuffer);
     glDeleteTextures(1, &lineTexture.id);
     glDeleteTextures(1, &blur1Texture.id);
@@ -691,7 +699,8 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     const int pointsPerResamplingChunk = 1024 * static_cast<int>(RESAMPLE_RATIO);
     const int allocatedEdges = nEdges + (nPoints + pointsPerResamplingChunk - 1) / pointsPerResamplingChunk;
 
-    std::vector<float> indices(4 * allocatedEdges);
+    const int indexEdges = drawLineInstances != nullptr ? 1 : allocatedEdges;
+    std::vector<float> indices(4 * indexEdges);
     for (size_t i = 0; i < indices.size(); ++i) {
         indices[i] = static_cast<float>(i);
     }
@@ -700,7 +709,7 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     glBufferData(GL_ARRAY_BUFFER, indices.size() * sizeof(float), indices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind
 
-    int len = allocatedEdges * 2 * 3;
+    int len = indexEdges * 2 * 3;
     std::vector<uint32_t> vertexIndices(len);
 
     for (int i = 0, pos = 0; i < len;) {
@@ -968,53 +977,36 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
         return;
     }
 
-    // Without this, there's an access violation that seems to occur only on some systems
-    std::vector<float> positionData(nPoints * 12);
-    std::vector<float> colorData;
-    if (mode == RenderMode::XYRGB) colorData.resize(nPoints * 12);
+    const bool instanced = drawLineInstances != nullptr;
+    const int copies = instanced ? 1 : 4;
+    const int components = mode == RenderMode::XYRGB ? 6 : 3;
+    linePointData.resize(static_cast<size_t>(nPoints) * copies * components);
 
     for (int i = 0; i < nPoints; ++i) {
-        int p = i * 12;
-        float x = xPoints[i];
-        float y = yPoints[i];
         float brightness = 1.0f;
         if (mode == RenderMode::XYZ) {
-            if (brightnessPoints != nullptr && i < (int) brightnessPoints->size()) brightness = (*brightnessPoints)[i];
-        } else if (mode == RenderMode::XYRGB) {
-            float r = rPoints[i];
-            float g = gPoints[i];
-            float b = bPoints[i];
-            if (r < 0.0f) {
-                // Sentinel: no colour specified, use full brightness and fall back to uLineColor
-                brightness = 1.0f;
-            } else {
-                brightness = std::max(r, std::max(g, b));
+            if (brightnessPoints != nullptr && i < (int)brightnessPoints->size()) {
+                brightness = (*brightnessPoints)[i];
             }
+        } else if (mode == RenderMode::XYRGB && !(rPoints[i] < 0.0f)) {
+            brightness = std::max(rPoints[i], std::max(gPoints[i], bPoints[i]));
         }
-        for (int k = 0; k < 4; ++k) {
-            positionData[p + 3 * k] = x;
-            positionData[p + 3 * k + 1] = y;
-            positionData[p + 3 * k + 2] = brightness;
+        for (int k = 0; k < copies; ++k) {
+            const auto offset = (static_cast<size_t>(i) * copies + k) * components;
+            linePointData[offset] = xPoints[i];
+            linePointData[offset + 1] = yPoints[i];
+            linePointData[offset + 2] = brightness;
             if (mode == RenderMode::XYRGB) {
-                float r = rPoints[i];
-                float g = gPoints[i];
-                float b = bPoints[i];
-                colorData[p + 3 * k] = r;
-                colorData[p + 3 * k + 1] = g;
-                colorData[p + 3 * k + 2] = b;
+                linePointData[offset + 3] = rPoints[i];
+                linePointData[offset + 4] = gPoints[i];
+                linePointData[offset + 5] = bPoints[i];
             }
         }
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-    glBufferData(GL_ARRAY_BUFFER, positionData.size() * sizeof(float), positionData.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, linePointData.size() * sizeof(float), linePointData.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    if (mode == RenderMode::XYRGB) {
-        glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-        glBufferData(GL_ARRAY_BUFFER, colorData.size() * sizeof(float), colorData.data(), GL_STATIC_DRAW);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
 
     lineShader->use();
     GLint aStartLoc = glGetAttribLocation(lineShader->getProgramID(), "aStart");
@@ -1031,16 +1023,34 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
     }
     glEnableVertexAttribArray(aIdxLoc);
 
+    const auto stride = static_cast<GLsizei>(components * sizeof(float));
+    const auto endOffset = static_cast<uintptr_t>(copies * stride);
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-    glVertexAttribPointer(aStartLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glVertexAttribPointer(aEndLoc, 3, GL_FLOAT, GL_FALSE, 0, (void *)(12 * sizeof(float)));
+    glVertexAttribPointer(aStartLoc, 3, GL_FLOAT, GL_FALSE, stride, nullptr);
+    glVertexAttribPointer(aEndLoc, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(endOffset));
     if (mode == RenderMode::XYRGB) {
-        glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-        if (aStartColorLoc >= 0) glVertexAttribPointer(aStartColorLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
-        if (aEndColorLoc >= 0) glVertexAttribPointer(aEndColorLoc, 3, GL_FLOAT, GL_FALSE, 0, (void *)(12 * sizeof(float)));
+        if (aStartColorLoc >= 0) {
+            glVertexAttribPointer(aStartColorLoc, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(3 * sizeof(float)));
+        }
+        if (aEndColorLoc >= 0) {
+            glVertexAttribPointer(aEndColorLoc, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(endOffset + 3 * sizeof(float)));
+        }
     }
     glBindBuffer(GL_ARRAY_BUFFER, quadIndexBuffer);
-    glVertexAttribPointer(aIdxLoc, 1, GL_FLOAT, GL_FALSE, 0, 0);
+    glVertexAttribPointer(aIdxLoc, 1, GL_FLOAT, GL_FALSE, 0, nullptr);
+    if (instanced) {
+        setLineAttributeDivisor(aStartLoc, 1);
+        setLineAttributeDivisor(aEndLoc, 1);
+        setLineAttributeDivisor(aIdxLoc, 0);
+        if (mode == RenderMode::XYRGB) {
+            if (aStartColorLoc >= 0) {
+                setLineAttributeDivisor(aStartColorLoc, 1);
+            }
+            if (aEndColorLoc >= 0) {
+                setLineAttributeDivisor(aEndColorLoc, 1);
+            }
+        }
+    }
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, screenTexture.id);
@@ -1076,7 +1086,22 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
     int nEdgesThisTime = nPoints - 1;
-    glDrawElements(GL_TRIANGLES, nEdgesThisTime * 6, GL_UNSIGNED_INT, 0);
+    if (instanced) {
+        drawLineInstances(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr, nEdgesThisTime);
+        // Other passes share attribute locations; disabling an array does not reset its divisor.
+        setLineAttributeDivisor(aStartLoc, 0);
+        setLineAttributeDivisor(aEndLoc, 0);
+        if (mode == RenderMode::XYRGB) {
+            if (aStartColorLoc >= 0) {
+                setLineAttributeDivisor(aStartColorLoc, 0);
+            }
+            if (aEndColorLoc >= 0) {
+                setLineAttributeDivisor(aEndColorLoc, 0);
+            }
+        }
+    } else {
+        glDrawElements(GL_TRIANGLES, nEdgesThisTime * 6, GL_UNSIGNED_INT, nullptr);
+    }
 
     glDisableVertexAttribArray(aStartLoc);
     glDisableVertexAttribArray(aEndLoc);
