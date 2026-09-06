@@ -199,13 +199,17 @@ private:
     double sampleRate = -1;
     double oldSampleRate = -1;
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> xResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> yResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> zResampler;
+    using VisualiserResampler = chowdsp::ResamplingTypes::LanczosResampler<2048, 8>;
+    bool resamplingActive = false;
+    bool resamplingSweep = false;
+    RenderMode resamplingRenderMode = RenderMode::XYRGB;
+    VisualiserResampler xResampler;
+    VisualiserResampler yResampler;
+    VisualiserResampler zResampler;
     // Dedicated colour channel resamplers to maintain independent filter state per channel
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> rResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> gResampler;
-    chowdsp::ResamplingTypes::LanczosResampler<2048, 8> bResampler;
+    VisualiserResampler rResampler;
+    VisualiserResampler gResampler;
+    VisualiserResampler bResampler;
 #endif
     std::atomic<RenderMode> renderMode { RenderMode::XYRGB };
 

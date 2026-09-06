@@ -320,44 +320,59 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
 
 #if OSCI_GUI_ENABLE_CHOWDSP_RESAMPLING
         if (parameters.getUpsamplingEnabled()) {
-            int newResampledSize = xSamples.size() * RESAMPLE_RATIO;
-
-            smoothedXSamples.resize(newResampledSize);
-            smoothedYSamples.resize(newResampledSize);
-            if (mode == RenderMode::XYZ) smoothedZSamples.resize(newResampledSize);
-            if (mode == RenderMode::XYRGB) {
-                smoothedRSamples.resize(newResampledSize);
-                smoothedGSamples.resize(newResampledSize);
-                smoothedBSamples.resize(newResampledSize);
+            const bool sweepEnabled = parameters.isSweepEnabled();
+            if (!resamplingActive || resamplingRenderMode != mode || resamplingSweep != sweepEnabled) {
+                // Channels that were inactive must restart on the same phase as the active channels.
+                for (auto* resampler : { &xResampler, &yResampler, &zResampler, &rResampler, &gResampler, &bResampler }) {
+                    resampler->reset();
+                }
+                resamplingActive = true;
+                resamplingRenderMode = mode;
+                resamplingSweep = sweepEnabled;
             }
 
-            if (parameters.isSweepEnabled()) {
-                // interpolate between sweep values to avoid any artifacts from quickly going from one sweep to the next
-                for (int i = 0; i < newResampledSize; ++i) {
-                    int index = i / RESAMPLE_RATIO;
-                    if (index < xSamples.size() - 1) {
-                        double thisSample = xSamples[index];
-                        double nextSample = xSamples[index + 1];
-                        if (nextSample > thisSample) {
-                            smoothedXSamples[i] = xSamples[index] + (i % (int)RESAMPLE_RATIO) * (nextSample - thisSample) / RESAMPLE_RATIO;
-                        } else {
-                            smoothedXSamples[i] = xSamples[index];
-                        }
+            std::array<VisualiserResampler::Channel, 5> channels;
+            std::array<std::vector<float>*, 5> outputs;
+            size_t numChannels = 0;
+            const auto addChannel = [&](auto& resampler, const auto& input, auto& output) {
+                // Lanczos may emit one extra sample per 1024-input chunk.
+                output.resize(input.size() * (size_t) RESAMPLE_RATIO + (input.size() + 1023) / 1024);
+                channels[numChannels] = { &resampler, input.data(), output.data() };
+                outputs[numChannels++] = &output;
+            };
+            addChannel(yResampler, ySamples, smoothedYSamples);
+            if (!sweepEnabled) {
+                addChannel(xResampler, xSamples, smoothedXSamples);
+            }
+            if (mode == RenderMode::XYZ) {
+                addChannel(zResampler, zSamples, smoothedZSamples);
+            } else if (mode == RenderMode::XYRGB) {
+                addChannel(rResampler, rSamples, smoothedRSamples);
+                addChannel(gResampler, gSamples, smoothedGSamples);
+                addChannel(bResampler, bSamples, smoothedBSamples);
+            }
+            const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size());
+            for (size_t channel = 0; channel < numChannels; ++channel) {
+                outputs[channel]->resize(count);
+            }
+            if (sweepEnabled) {
+                smoothedXSamples.resize(smoothedYSamples.size());
+                // Keep sweep resets sharp rather than filtering across them.
+                for (int i = 0; i < (int) smoothedXSamples.size(); ++i) {
+                    const int index = std::min(i / (int) RESAMPLE_RATIO, (int) xSamples.size() - 1);
+                    if (index < (int) xSamples.size() - 1) {
+                        const double thisSample = xSamples[index];
+                        const double nextSample = xSamples[index + 1];
+                        smoothedXSamples[i] = nextSample > thisSample
+                            ? thisSample + (i % (int) RESAMPLE_RATIO) * (nextSample - thisSample) / RESAMPLE_RATIO
+                            : thisSample;
                     } else {
                         smoothedXSamples[i] = xSamples[index];
                     }
                 }
-            } else {
-                xResampler.process(xSamples.data(), smoothedXSamples.data(), (int) xSamples.size());
             }
-            yResampler.process(ySamples.data(), smoothedYSamples.data(), (int) ySamples.size());
-            if (mode == RenderMode::XYZ) {
-                if (!zSamples.empty()) zResampler.process(zSamples.data(), smoothedZSamples.data(), (int) zSamples.size());
-            } else if (mode == RenderMode::XYRGB) {
-                if (!rSamples.empty()) rResampler.process(rSamples.data(), smoothedRSamples.data(), (int) rSamples.size());
-                if (!gSamples.empty()) gResampler.process(gSamples.data(), smoothedGSamples.data(), (int) gSamples.size());
-                if (!bSamples.empty()) bResampler.process(bSamples.data(), smoothedBSamples.data(), (int) bSamples.size());
-            }
+        } else {
+            resamplingActive = false;
         }
 #endif
     }
@@ -672,8 +687,11 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     }
 
     nEdges = nPoints - 1;
+    // Reserve Lanczos chunk headroom without changing the shutter normalization in nEdges.
+    const int pointsPerResamplingChunk = 1024 * static_cast<int>(RESAMPLE_RATIO);
+    const int allocatedEdges = nEdges + (nPoints + pointsPerResamplingChunk - 1) / pointsPerResamplingChunk;
 
-    std::vector<float> indices(4 * nEdges);
+    std::vector<float> indices(4 * allocatedEdges);
     for (size_t i = 0; i < indices.size(); ++i) {
         indices[i] = static_cast<float>(i);
     }
@@ -682,7 +700,7 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     glBufferData(GL_ARRAY_BUFFER, indices.size() * sizeof(float), indices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbind
 
-    int len = nEdges * 2 * 3;
+    int len = allocatedEdges * 2 * 3;
     std::vector<uint32_t> vertexIndices(len);
 
     for (int i = 0, pos = 0; i < len;) {
@@ -700,7 +718,7 @@ void VisualiserRenderer::setupArrays(int nPoints) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // Unbind
 
     // Initialize scratch vertices
-    scratchVertices.resize(12 * nPoints);
+    scratchVertices.resize(12 * (allocatedEdges + 1));
 }
 
 void VisualiserRenderer::setupTextures(VisualiserRenderSize size) {
