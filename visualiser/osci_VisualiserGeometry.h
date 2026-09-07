@@ -244,10 +244,8 @@ namespace VisualiserGeometry {
         const auto graticule = getGraticuleLayout(size);
         constexpr int minorDivisions = 5;
         const float tickScale = graticule.cellSizePixels / 45.0f;
-        const float shortTickNegative = 2.0f * tickScale;
-        const float shortTickPositive = 1.0f * tickScale;
-        const float centreTickNegative = 5.0f * tickScale;
-        const float centreTickPositive = 4.0f * tickScale;
+        const float shortTickLength = 1.5f * tickScale;
+        const float centreTickLength = 4.5f * tickScale;
         const float quarterTickLength = 2.0f * tickScale;
         const float xMax = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(graticule.xDivisions);
         const float yMax = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(graticule.yDivisions);
@@ -280,24 +278,22 @@ namespace VisualiserGeometry {
         for (int i = 1; i < graticule.yDivisions; i++) {
             const float y = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(i);
             const bool centreLine = i == graticule.yDivisions / 2;
-            const float tickNegative = centreLine ? centreTickNegative : shortTickNegative;
-            const float tickPositive = centreLine ? centreTickPositive : shortTickPositive;
+            const float tickLength = centreLine ? centreTickLength : shortTickLength;
 
             for (int j = 0; j <= graticule.xDivisions * minorDivisions; j++) {
                 const float tx = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(j) / static_cast<float>(minorDivisions);
-                addLine(tx, y - tickNegative, tx, y + tickPositive);
+                addLine(tx, y - tickLength, tx, y + tickLength);
             }
         }
 
         for (int i = 1; i < graticule.xDivisions; i++) {
             const float x = graticule.xOriginPixels + graticule.cellSizePixels * static_cast<float>(i);
             const bool centreLine = i == graticule.xDivisions / 2;
-            const float tickNegative = centreLine ? centreTickNegative : shortTickNegative;
-            const float tickPositive = centreLine ? centreTickPositive : shortTickPositive;
+            const float tickLength = centreLine ? centreTickLength : shortTickLength;
 
             for (int j = 0; j <= graticule.yDivisions * minorDivisions; j++) {
                 const float ty = graticule.yOriginPixels + graticule.cellSizePixels * static_cast<float>(j) / static_cast<float>(minorDivisions);
-                addLine(x - tickNegative, ty, x + tickPositive, ty);
+                addLine(x - tickLength, ty, x + tickLength, ty);
             }
         }
 
