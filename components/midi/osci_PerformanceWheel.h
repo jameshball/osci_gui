@@ -14,6 +14,8 @@ public:
 
     // Optional Alt/Option-drag action, separate from changing the wheel value.
     std::function<void(const juce::MouseEvent&)> onAssignmentDrag;
+    // Update from MIDI/automation without sending a change back to the host.
+    void setExternalValue(double value);
     void setAccentColour(juce::Colour);
     void setModulatedValue(double value, bool active);
     void paint(juce::Graphics&) override;

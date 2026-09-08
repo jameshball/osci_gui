@@ -21,6 +21,13 @@ PerformanceWheel::PerformanceWheel(Mode wheelMode) : mode(wheelMode) {
 
 PerformanceWheel::~PerformanceWheel() { stopTimer(); }
 
+void PerformanceWheel::setExternalValue(double value) {
+    if (value != getValue()) {
+        setValue(value, juce::dontSendNotification);
+        valueChanged();
+    }
+}
+
 void PerformanceWheel::setAccentColour(juce::Colour colour) {
     setColour(juce::Slider::thumbColourId, colour);
     repaint();
