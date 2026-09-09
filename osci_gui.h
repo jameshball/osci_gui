@@ -72,6 +72,8 @@
 #include "components/osci_LabelledTextBox.h"
 #include "components/osci_ValuePopupHelper.h"
 #include "components/osci_VerticalTabListComponent.h"
+#include "components/osci_PanelHeader.h"
+#include "components/osci_TabBar.h"
 #include "components/osci_ParameterSyncHelper.h"
 #include "components/osci_DownloadProgressComponent.h"
 #include "components/osci_DownloaderComponent.h"

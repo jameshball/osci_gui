@@ -11,6 +11,9 @@ inline void showContextMenuAsync(juce::PopupMenu menu,
     auto options = juce::PopupMenu::Options().withTargetScreenArea(
         juce::Rectangle<int>(screenPosition.x, screenPosition.y, 1, 1));
     auto safeOwner = juce::Component::SafePointer<juce::Component>(owner);
+    if (owner != nullptr) {
+        menu.setLookAndFeel(&owner->getLookAndFeel());
+    }
     menu.showMenuAsync(options, [safeOwner, onResult = std::move(onResult)](int result) {
         if (safeOwner != nullptr && onResult != nullptr) {
             onResult(result);
