@@ -50,6 +50,7 @@ public:
         juce::PopupMenu menu;
         menu.addItem(1, "Reset to Default Value", isDoubleClickReturnEnabled());
         menu.addItem(2, "Set Value...");
+        menu.setLookAndFeel(&getLookAndFeel());
 
         auto options = juce::PopupMenu::Options().withTargetScreenArea(
             juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1));
