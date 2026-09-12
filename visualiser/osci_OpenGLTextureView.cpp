@@ -74,9 +74,7 @@ OpenGLTextureView::OpenGLTextureView(OpenGLFrameMirror& source) : source(source)
 
 OpenGLTextureView::~OpenGLTextureView() {
     stopTimer();
-    source.setConsumerActive(false);
-    context.detach();
-    context.setNativeSharedContext(nullptr);
+    detachContext();
 }
 
 void OpenGLTextureView::setActive(bool shouldBeActive) {
@@ -86,7 +84,7 @@ void OpenGLTextureView::setActive(bool shouldBeActive) {
         updateContext();
     } else {
         stopTimer();
-        source.setConsumerActive(false);
+        detachContext();
     }
 }
 
@@ -158,6 +156,17 @@ void OpenGLTextureView::timerCallback() {
     updateContext();
 }
 
+void OpenGLTextureView::detachContext() {
+    source.setConsumerActive(false);
+    // Release the consumer while its shared source context is still alive.
+    context.detach();
+    context.setNativeSharedContext(nullptr);
+    attachedSourceContext = nullptr;
+    attachedSourceEpoch = 0;
+    lastDisplayedGeneration.store(0);
+    lastAlphaMaskGeneration = 0;
+}
+
 void OpenGLTextureView::updateContext() {
     if (!active) {
         return;
@@ -168,24 +177,16 @@ void OpenGLTextureView::updateContext() {
     if (sourceContext == nullptr || !source.isSourceReady()) {
         source.setConsumerActive(false);
         if (context.isAttached() || attachedSourceContext != nullptr) {
-            context.detach();
-            context.setNativeSharedContext(nullptr);
-            attachedSourceContext = nullptr;
-            attachedSourceEpoch = 0;
-            lastDisplayedGeneration = 0;
-            lastAlphaMaskGeneration = 0;
+            detachContext();
         }
         return;
     }
 
     if (sourceContext != attachedSourceContext || sourceEpoch != attachedSourceEpoch) {
-        source.setConsumerActive(false);
-        context.detach();
+        detachContext();
         context.setNativeSharedContext(sourceContext);
         attachedSourceContext = sourceContext;
         attachedSourceEpoch = sourceEpoch;
-        lastDisplayedGeneration = 0;
-        lastAlphaMaskGeneration = 0;
     }
 
     if (isShowing() && getPeer() != nullptr && !context.isAttached()) {
@@ -199,7 +200,7 @@ void OpenGLTextureView::updateContext() {
     }
 
     const auto generation = source.getPublishedGeneration();
-    if (generation != lastDisplayedGeneration) {
+    if (generation != lastDisplayedGeneration.load()) {
         context.triggerRepaint();
     }
     if (!source.hasPublishedFrame()) {
@@ -256,7 +257,7 @@ void OpenGLTextureView::renderOpenGL() {
         juce::gl::glViewport(fitted.getX(), fitted.getY(), fitted.getWidth(), fitted.getHeight());
     }
 
-    lastDisplayedGeneration = frame->generation;
+    lastDisplayedGeneration.store(frame->generation);
     source.release(*frame);
 }
 

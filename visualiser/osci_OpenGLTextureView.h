@@ -33,6 +33,7 @@ private:
     void renderOpenGL() override;
     void openGLContextClosing() override;
     void updateContext();
+    void detachContext();
     void drawTexture(Texture texture, bool preserveAlpha, bool checkerboard, float fade);
     void captureAlphaMask(Texture texture);
     void createAlphaMaskTexture(int width, int height);
@@ -46,7 +47,7 @@ private:
     Texture alphaMaskTexture;
     void* attachedSourceContext = nullptr;
     std::uint64_t attachedSourceEpoch = 0;
-    std::uint64_t lastDisplayedGeneration = 0;
+    std::atomic<std::uint64_t> lastDisplayedGeneration { 0 };
     std::uint64_t lastAlphaMaskGeneration = 0;
     std::atomic<float> fadeAlpha { 0.0f };
     std::atomic<bool> transparent { false };

@@ -788,6 +788,9 @@ void VisualiserRenderer::allocateRenderTextures(VisualiserRenderSize size, bool 
 Texture VisualiserRenderer::makeTexture(int width, int height, GLuint textureID, GLint internalFormat, GLenum pixelType) {
     using namespace juce::gl;
 
+    // Mirrored frames can allocate here after presentation bound the default framebuffer.
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+
     // replace existing texture if it exists, otherwise create new texture
     if (textureID == 0) {
         glGenTextures(1, &textureID);
