@@ -8,13 +8,13 @@ public:
         setOverlayTitle ("Find your license key");
 
         configureLabel (messageLabel, juce::Font (juce::FontOptions (14.2f)), juce::Justification::centredLeft);
-        messageLabel.setText ("Your key is on the download page linked from your purchase email.",
+        messageLabel.setText ("Your key is on the download page linked from your email receipt.",
                               juce::dontSendNotification);
         messageLabel.setMinimumHorizontalScale (0.82f);
         addPanelContentAndMakeVisible (messageLabel);
 
         juce::StringArray licenseSteps;
-        licenseSteps.add ("Open the download link from your Gumroad or Payhip email.");
+        licenseSteps.add ("Open the download link from your Gumroad or Payhip email receipt.");
         licenseSteps.add ("Copy the license key shown near the top of the page.");
         licenseSteps.add ("Paste it into the installer and activate.");
         stepsComponent.setSteps (licenseSteps);
