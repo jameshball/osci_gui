@@ -889,7 +889,7 @@ void LookAndFeel::drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int
     }
 
     auto textColourToUse = isHighlighted && isActive
-                         ? Colours::textOnAccent()
+                         ? juce::Colours::white
                          : (isActive ? Colours::text().withAlpha(0.88f)
                                      : Colours::text().withAlpha(0.35f));
     if (textColour != nullptr)
@@ -915,6 +915,13 @@ void LookAndFeel::drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int
         tick.lineTo(cx + 5.0f, cy - 4.0f);
         g.setColour(textColourToUse);
         g.strokePath(tick, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
+    if (icon != nullptr) {
+        auto iconArea = textArea.removeFromLeft(16).toFloat();
+        textArea.removeFromLeft(6);
+        icon->drawWithin(g, iconArea, juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize,
+                         isActive ? 0.88f : 0.35f);
     }
 
     if (hasSubMenu) {
