@@ -128,6 +128,7 @@ VisualiserRenderer::~VisualiserRenderer() {
     // thread in their own destructor. setShouldBeRunning is idempotent, so this is a
     // safe defense-in-depth for direct VisualiserRenderer use or future subclasses.
     setShouldBeRunning(false, [this] { renderingSemaphore.release(); });
+    unregisterFromManager();
     frameMirror.setSourceRepaintCallback(nullptr);
     openGLContext.detach();
 }
