@@ -58,7 +58,6 @@ VolumeComponent::VolumeComponent(AudioBackgroundThreadManager& threadManager,
       outputClipPeakEpsilon(outputClipPeakEpsilonToUse),
       volumeButton("VolumeButton", std::move(volumeSvg), juce::Colours::white, juce::Colours::red, &muteParameter, std::move(muteSvg)) {
     setOpaque(false);
-    setShouldBeRunning(true);
 
     leftVolumeSmoothed.reset(10);
     rightVolumeSmoothed.reset(10);
@@ -101,10 +100,12 @@ VolumeComponent::VolumeComponent(AudioBackgroundThreadManager& threadManager,
     volumeButton.onClick = [this] {
         muteParameter.setBoolValueNotifyingHost(!muteParameter.getBoolValue());
     };
+    setShouldBeRunning(true);
 }
 
 VolumeComponent::~VolumeComponent() {
     setShouldBeRunning(false);
+    unregisterFromManager();
 }
 
 bool VolumeComponent::isOutputClipActive(float threshold) const noexcept {
