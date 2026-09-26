@@ -43,6 +43,14 @@ public:
         setCurrentTabIndex(index, notification != juce::dontSendNotification);
     }
 
+    // Dense inspectors can reduce padding without compressing their typeface.
+    void setTabSpacing(int minimumLength, int horizontalPadding) {
+        minimumTabLength = juce::jmax(1, minimumLength);
+        tabPadding = juce::jmax(0, horizontalPadding);
+        resized();
+        repaint();
+    }
+
     std::function<void(int)> onSelectionChanged;
 
     void paint(juce::Graphics& g) override {
@@ -51,6 +59,7 @@ public:
     }
 
 private:
+    int minimumTabLength = 84, tabPadding = 18;
     struct TabLookAndFeel final : osci::LookAndFeel {
         explicit TabLookAndFeel(TabBar& bar) : bar(bar) {}
         juce::Typeface::Ptr getTypefaceForFont(const juce::Font& font) override {
@@ -72,7 +81,7 @@ private:
         int getBestTabLength(int) override {
             juce::GlyphArrangement glyphs;
             glyphs.addLineOfText(font(), getButtonText(), 0.0f, 0.0f);
-            return juce::jmax(84, juce::roundToInt(glyphs.getBoundingBox(0, -1, true).getWidth()) + 36);
+            return juce::jmax(bar.minimumTabLength, juce::roundToInt(glyphs.getBoundingBox(0, -1, true).getWidth()) + 2 * bar.tabPadding);
         }
 
         bool hitTest(int x, int y) override { return getLocalBounds().contains(x, y); }
@@ -86,10 +95,10 @@ private:
             const bool selected = isFrontTab();
             g.setColour(bar.findColour(selected ? selectedTextColourId : textColourId).withMultipliedAlpha(isEnabled() ? 1.0f : 0.4f));
             g.setFont(font());
-            g.drawFittedText(getButtonText(), getLocalBounds().reduced(18, 0).withTrimmedBottom(2), juce::Justification::centred, 1);
+            g.drawFittedText(getButtonText(), getLocalBounds().reduced(bar.tabPadding, 0).withTrimmedBottom(2), juce::Justification::centred, 1);
             if (selected) {
                 g.setColour(bar.findColour(indicatorColourId));
-                g.fillRoundedRectangle(bounds.withTrimmedLeft(18).withTrimmedRight(18).withTop(bounds.getBottom() - 3.0f), 1.5f);
+                g.fillRoundedRectangle(bounds.withTrimmedLeft(static_cast<float>(bar.tabPadding)).withTrimmedRight(static_cast<float>(bar.tabPadding)).withTop(bounds.getBottom() - 3.0f), 1.5f);
             }
             if (hasKeyboardFocus(false) && keyboardFocus) {
                 g.setColour(bar.findColour(indicatorColourId).withAlpha(0.7f));
