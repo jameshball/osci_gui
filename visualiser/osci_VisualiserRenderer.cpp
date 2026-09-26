@@ -393,7 +393,12 @@ void VisualiserRenderer::upsampleSamples(RenderMode mode) {
             addChannel(gResampler, gSamples, smoothedGSamples);
             addChannel(bResampler, bSamples, smoothedBSamples);
         }
-        const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size());
+        // RGB carries exact blanking and inherited-colour sentinels. Preserve
+        // these boundaries with synchronized linear geometry/colour near them;
+        // continuous strokes and XY/XYZ retain Lanczos reconstruction.
+        const VisualiserResampler::ControlSignalGuard rgbGuard {numChannels >= 3 ? numChannels - 3 : 0, 3};
+        const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size(),
+            VisualiserResampler::Interpolation::lanczos, mode == RenderMode::XYRGB ? &rgbGuard : nullptr);
         for (size_t channel = 0; channel < numChannels; ++channel) {
             outputs[channel]->resize(count);
         }
