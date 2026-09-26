@@ -267,8 +267,12 @@ public:
 
     static LookAndFeel& getSharedInstance();
 
+    // Per-editor control geometry; existing products retain the default radius.
+    void setControlCornerRadius(float radius) { controlCornerRadius = std::isfinite(radius) ? juce::jlimit(0.0f, 20.0f, radius) : Colours::kPillRadius; }
+    float getControlCornerRadius() const { return controlCornerRadius; }
+
     static void applyColours (juce::LookAndFeel& lookAndFeel);
-    static void drawComboBoxStyle (juce::Graphics& g, int width, int height, juce::ComboBox& box);
+    static void drawComboBoxStyle (juce::Graphics& g, int width, int height, juce::ComboBox& box, float cornerRadius = Colours::kPillRadius);
     static void positionComboBoxTextStyle (juce::LookAndFeel& lookAndFeel, juce::ComboBox& box, juce::Label& label);
 
     static const int RECT_RADIUS = 5;
@@ -334,6 +338,7 @@ public:
     int getPopupMenuBorderSize() override;
 
 protected:
+    float controlCornerRadius = Colours::kPillRadius;
     juce::Typeface::Ptr regularTypeface;
     juce::Typeface::Ptr boldTypeface;
     juce::Typeface::Ptr italicTypeface;

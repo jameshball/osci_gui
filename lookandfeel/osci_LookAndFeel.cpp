@@ -273,11 +273,11 @@ void LookAndFeel::applyColours(juce::LookAndFeel& lookAndFeel) {
     lookAndFeel.setColour(juce::ProgressBar::foregroundColourId, Colours::accentColor());
 }
 
-void LookAndFeel::drawComboBoxStyle(juce::Graphics& g, int width, int height, juce::ComboBox& box) {
+void LookAndFeel::drawComboBoxStyle(juce::Graphics& g, int width, int height, juce::ComboBox& box, float cornerRadius) {
     juce::Rectangle<int> boxBounds{0, 0, width, height};
 
     g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
-    g.fillRoundedRectangle(boxBounds.toFloat(), Colours::kPillRadius);
+    g.fillRoundedRectangle(boxBounds.toFloat(), cornerRadius);
 
     juce::Rectangle<int> arrowZone{width - 15, 0, 10, height};
     juce::Path path;
@@ -303,7 +303,7 @@ void LookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
         baseColour = LookAndFeelHelpers::createBaseColour(baseColour, false, label.isMouseOver(true), false, label.isEnabled());
     }
     g.setColour(baseColour);
-    g.fillRoundedRectangle(label.getLocalBounds().toFloat(), Colours::kPillRadius);
+    g.fillRoundedRectangle(label.getLocalBounds().toFloat(), getControlCornerRadius());
 
     if (!label.isBeingEdited())
     {
@@ -328,7 +328,7 @@ void LookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {
             outlineColour = LookAndFeelHelpers::createBaseColour(outlineColour, false, label.isMouseOver(true), false, label.isEnabled());
         }
         g.setColour(outlineColour);
-        g.drawRoundedRectangle(label.getLocalBounds().toFloat(), Colours::kPillRadius, 1);
+        g.drawRoundedRectangle(label.getLocalBounds().toFloat(), getControlCornerRadius(), 1);
     }
 }
 
@@ -347,7 +347,7 @@ void LookAndFeel::fillTextEditorBackground(juce::Graphics& g, int width, int hei
         auto backgroundColour = textEditor.findColour (juce::TextEditor::backgroundColourId);
         auto baseColour = LookAndFeelHelpers::createBaseColour(backgroundColour, false, textEditor.isMouseOver(true), false, textEditor.isEnabled());
         g.setColour(baseColour);
-        g.fillRoundedRectangle(textEditor.getLocalBounds().toFloat(), Colours::kPillRadius);
+        g.fillRoundedRectangle(textEditor.getLocalBounds().toFloat(), getControlCornerRadius());
     }
 }
 
@@ -360,7 +360,7 @@ void LookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height
             const float half = border * 0.5f;
 
             g.setColour (textEditor.findColour (juce::TextEditor::focusedOutlineColourId));
-            g.drawRoundedRectangle(half, half, width - border, height - border, Colours::kPillRadius, border);
+            g.drawRoundedRectangle(half, half, width - border, height - border, getControlCornerRadius(), border);
         }
         else
         {
@@ -370,13 +370,13 @@ void LookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height
             auto outlineColour = textEditor.findColour(juce::TextEditor::outlineColourId);
             outlineColour = LookAndFeelHelpers::createBaseColour(outlineColour, false, textEditor.isMouseOver(true), false, textEditor.isEnabled());
             g.setColour(outlineColour);
-            g.drawRoundedRectangle(half, half, width - border, height - border, Colours::kPillRadius, border);
+            g.drawRoundedRectangle(half, half, width - border, height - border, getControlCornerRadius(), border);
         }
     }
 }
 
 void LookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool, int, int, int, int, juce::ComboBox& box) {
-    drawComboBoxStyle(g, width, height, box);
+    drawComboBoxStyle(g, width, height, box, getControlCornerRadius());
 }
 
 void LookAndFeel::positionComboBoxText(juce::ComboBox& box, juce::Label& label) {
@@ -392,7 +392,7 @@ void LookAndFeel::drawTickBox(juce::Graphics& g, juce::Component& component,
     juce::Rectangle<float> tickBounds(x, y, w, h);
 
     g.setColour(component.findColour(juce::TextButton::buttonColourId));
-    g.fillRoundedRectangle(tickBounds, Colours::kPillRadius);
+    g.fillRoundedRectangle(tickBounds, getControlCornerRadius());
 
     if (ticked) {
         g.setColour(component.findColour(juce::ToggleButton::tickColourId));
@@ -544,7 +544,7 @@ void LookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button, 
     auto baseColour = LookAndFeelHelpers::createBaseColour(backgroundColour, button.hasKeyboardFocus(true), shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown, button.isEnabled());
 
     g.setColour(baseColour);
-    g.fillRoundedRectangle(bounds, Colours::kPillRadius);
+    g.fillRoundedRectangle(bounds, getControlCornerRadius());
 }
 
 void LookAndFeel::drawMenuBarBackground(juce::Graphics& g, int width, int height, bool, juce::MenuBarComponent& menuBar) {
