@@ -43,7 +43,7 @@ public:
         setCurrentTabIndex(index, notification != juce::dontSendNotification);
     }
 
-    // Dense inspectors can reduce padding without compressing their typeface.
+    // Dense layouts can reduce padding without shrinking the labels.
     void setTabSpacing(int minimumLength, int horizontalPadding) {
         minimumTabLength = juce::jmax(1, minimumLength);
         tabPadding = juce::jmax(0, horizontalPadding);

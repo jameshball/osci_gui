@@ -5,7 +5,6 @@ namespace osci {
 class PanelDivider : public juce::Component {
 public:
     explicit PanelDivider(bool vertical) : vertical(vertical) {
-        setName(vertical ? "Resize preview panels" : "Resize timeline");
         setMouseCursor(vertical ? juce::MouseCursor::LeftRightResizeCursor : juce::MouseCursor::UpDownResizeCursor);
         setWantsKeyboardFocus(true);
     }

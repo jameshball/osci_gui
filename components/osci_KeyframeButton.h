@@ -2,11 +2,13 @@
 
 namespace osci {
 
-// Compact animation affordance that remains legible at inspector-row sizes.
+// A compact keyframe toggle: outlined when animated, filled on a key; legible
+// at small row sizes.
 class KeyframeButton : public juce::Button {
 public:
     enum class State { unanimated, animated, keyed };
-    KeyframeButton() : juce::Button("Keyframe") {}
+    enum ColourIds { keyColourId = 0x2f32000 };
+    KeyframeButton() : juce::Button("Keyframe") { setColour(keyColourId, juce::Colour(0xff72de98)); }
 
     void setState(State value) {
         if (state != value) {
@@ -26,7 +28,7 @@ public:
         diamond.lineTo(centre.x - radius, centre.y);
         diamond.closeSubPath();
         const auto alpha = isEnabled() ? (highlighted || down ? 1.0f : 0.8f) : 0.25f;
-        g.setColour((state == State::unanimated ? Colours::text() : juce::Colour(0xff72de98)).withAlpha(alpha));
+        g.setColour((state == State::unanimated ? Colours::text() : findColour(keyColourId)).withAlpha(alpha));
         if (state == State::keyed || down) {
             g.fillPath(diamond);
         } else {
