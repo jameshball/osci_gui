@@ -49,6 +49,10 @@ public:
         setIconColours (normalColour, hoverColour);
     }
 
+    void setTooltip(const juce::String& text) {
+        iconButton.setTooltip(text);
+    }
+
     void resized() override {
         iconButton.setBounds (getLocalBounds());
     }
