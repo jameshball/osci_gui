@@ -51,15 +51,29 @@ public:
         repaint();
     }
 
+    // Replaces the default bold label font.
+    void setFont(juce::Font font) {
+        labelFont = std::move(font);
+        resized();
+        repaint();
+    }
+
+    // The width every tab needs at its natural length.
+    int preferredWidth() const {
+        int width = 0;
+        for (int index = 0; index < getNumTabs(); ++index) { width += static_cast<Tab*>(getTabButton(index))->getBestTabLength(0); }
+        return width;
+    }
+
     std::function<void(int)> onSelectionChanged;
 
     void paint(juce::Graphics& g) override {
         PanelHeader::paintBackground(g, getLocalBounds().toFloat(), findColour(backgroundColourId));
-
     }
 
 private:
     int minimumTabLength = 84, tabPadding = 18;
+    std::optional<juce::Font> labelFont;
     struct TabLookAndFeel final : osci::LookAndFeel {
         explicit TabLookAndFeel(TabBar& bar) : bar(bar) {}
         juce::Typeface::Ptr getTypefaceForFont(const juce::Font& font) override {
@@ -143,6 +157,7 @@ private:
 
     private:
         juce::Font font() const {
+            if (bar.labelFont.has_value()) { return *bar.labelFont; }
             const juce::Font requested(juce::FontOptions(14.0f, juce::Font::bold));
             return juce::Font(juce::FontOptions(bar.getLookAndFeel().getTypefaceForFont(requested))).withHeight(14.0f);
         }
