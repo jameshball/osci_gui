@@ -90,6 +90,7 @@
 #include "components/osci_GridItemComponent.h"
 #include "components/osci_GridComponent.h"
 #include "components/osci_PanelDivider.h"
+#include "components/osci_SectionStack.h"
 #include "components/osci_ColourPicker.h"
 #include "components/osci_LineBatch.h"
 #include "components/osci_PlayheadStrip.h"
