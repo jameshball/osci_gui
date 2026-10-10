@@ -1084,7 +1084,7 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
     glBindTexture(GL_TEXTURE_2D, screenTexture.id);
     lineShader->setUniform("uScreen", 0);
     lineShader->setUniform("uSize", (GLfloat)parameters.getFocus());
-    lineShader->setUniform("uGain", 450.0f / 512.0f);
+    lineShader->setUniform("uGain", VisualiserGeometry::signalGain);
     lineShader->setUniform("uInvert", 1.0f);
     juce::Colour lineColour = juce::Colour::fromHSV((float)(parameters.getHue() / 360.0f), 1.0f, 1.0f, 1.0f);
     lineShader->setUniform("uLineColor", lineColour.getFloatRed(), lineColour.getFloatGreen(), lineColour.getFloatBlue());
