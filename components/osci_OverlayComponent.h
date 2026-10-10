@@ -162,6 +162,14 @@ private:
     }
 
 public:
+    // The look its controls take. A host can give its own, which must outlive
+    // the overlay; null keeps the overlay's.
+    void setControlLookAndFeel(juce::LookAndFeel* lookAndFeel) {
+        clearOverlayLookAndFeelRecursively(contentLayer);
+        controlLookAndFeel = lookAndFeel;
+        applyOverlayLookAndFeelRecursively(contentLayer);
+    }
+
     void setOverlayTitle (const juce::String& title) {
         overlayTitleLabel.setText (title, juce::dontSendNotification);
         overlayTitleLabel.setVisible (title.isNotEmpty());
@@ -664,7 +672,7 @@ private:
 
     void applyOverlayLookAndFeelRecursively (juce::Component& component) {
         if (usesOverlayLookAndFeel (component)) {
-            component.setLookAndFeel (&overlayLookAndFeel);
+            component.setLookAndFeel(&controlLook());
         }
 
         for (auto i = 0; i < component.getNumChildComponents(); ++i) {
@@ -676,7 +684,7 @@ private:
     }
 
     void clearOverlayLookAndFeelRecursively (juce::Component& component) {
-        if (&component.getLookAndFeel() == &overlayLookAndFeel) {
+        if (&component.getLookAndFeel() == &overlayLookAndFeel || &component.getLookAndFeel() == controlLookAndFeel) {
             component.setLookAndFeel (nullptr);
         }
 
@@ -687,6 +695,8 @@ private:
             }
         }
     }
+
+    juce::LookAndFeel& controlLook() { return controlLookAndFeel != nullptr ? *controlLookAndFeel : overlayLookAndFeel; }
 
     static bool usesOverlayLookAndFeel (juce::Component& component) {
         return dynamic_cast<juce::TextButton*> (&component) != nullptr
@@ -908,6 +918,7 @@ private:
     static constexpr int panelShadowPadding = 36;
 
     OverlayLookAndFeel overlayLookAndFeel;
+    juce::LookAndFeel* controlLookAndFeel = nullptr;
     ImageLayer backdropLayer;
     ImageLayer blurredBackdropLayer;
     PanelLayer panelLayer;
