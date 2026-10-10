@@ -162,6 +162,9 @@ private:
     }
 
 public:
+    // The dialog's panel, in the overlay's coordinates.
+    juce::Rectangle<int> getPanelBounds() const { return panelBounds; }
+
     // The look its controls take. A host can give its own, which must outlive
     // the overlay; null keeps the overlay's.
     void setControlLookAndFeel(juce::LookAndFeel* lookAndFeel) {
