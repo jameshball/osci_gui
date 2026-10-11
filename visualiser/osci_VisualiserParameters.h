@@ -366,7 +366,7 @@ public:
             "Line Intensity",
             "Controls how bright the electron beam of the oscilloscope is.",
             "intensity",
-            VERSION_HINT, 5.0, 0.0, 10.0
+            VERSION_HINT, 5.0, 0.0, 50.0
         )
     );
     std::shared_ptr<osci::Effect> lineSaturationEffect = std::make_shared<osci::SimpleEffect>(
