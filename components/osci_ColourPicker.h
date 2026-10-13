@@ -3,8 +3,9 @@
 #include <array>
 
 namespace osci {
-// A saturation and brightness square above a hue strip. Dragging edits live;
-// values stay in 0..1 RGB at full precision.
+// A saturation and brightness square above a hue strip, and the colour as
+// hex to type or paste. Dragging edits live; values stay in 0..1 RGB at full
+// precision.
 class ColourPicker final : public juce::Component {
 public:
     using Rgb = std::array<double, 3>;
@@ -12,13 +13,23 @@ public:
     explicit ColourPicker(Rgb initial) {
         setName("Colour picker");
         setTitle("Colour picker");
+        hex.setName("Colour hex");
+        hex.setTitle("Colour hex");
+        hex.setTooltip("The colour as hex: type or paste one, Return applies");
+        hex.setInputRestrictions(7, "#0123456789abcdefABCDEF");
+        hex.onReturnKey = [this] { applyHex(); };
+        hex.onFocusLost = [this] { applyHex(); };
+        addAndMakeVisible(hex);
         setRgb(initial);
-        setSize(margin * 2 + width, margin * 2 + squareHeight + gap + stripHeight);
+        setSize(margin * 2 + width, margin * 2 + squareHeight + gap + stripHeight + gap + hexHeight);
     }
+    void resized() override { hex.setBounds(margin, stripBounds().getBottom() + gap, hexWidth, hexHeight); }
     std::function<void()> onBegin, onEnd;
     // Closed mid-drag (Escape dismisses its popover), it still ends the
     // gesture it began.
     ~ColourPicker() override {
+        // The field gives up the keyboard as it goes; that is not a commit.
+        hex.onFocusLost = nullptr;
         if (part != Part::none && onEnd) { onEnd(); }
     }
     std::function<void(Rgb)> onChange;
@@ -42,6 +53,7 @@ public:
             }
             hue = sector / 6.0;
         }
+        showHex();
         repaint();
     }
     Rgb rgb() const {
@@ -105,7 +117,7 @@ public:
     }
 
 private:
-    static constexpr int margin = 10, width = 200, squareHeight = 136, gap = 10, stripHeight = 12;
+    static constexpr int margin = 10, width = 200, squareHeight = 136, gap = 10, stripHeight = 12, hexWidth = 88, hexHeight = 24;
     static constexpr float radius = 3.0f;
     enum class Part { none, square, strip };
     juce::Rectangle<int> squareBounds() const { return {margin, margin, width, squareHeight}; }
@@ -129,9 +141,33 @@ private:
             // Full right is red again; keep it just short so the marker stays put.
             hue = std::clamp((point.x - strip.getX()) / strip.getWidth(), 0.0f, 0.9999f);
         }
+        showHex();
         repaint();
         if (onChange) { onChange(rgb()); }
     }
+    void showHex() {
+        const auto picked = rgb();
+        shownHex = juce::Colour::fromFloatRGBA(static_cast<float>(picked[0]), static_cast<float>(picked[1]), static_cast<float>(picked[2]), 1.0f).toDisplayString(false);
+        hex.setText("#" + shownHex, false);
+    }
+    // A typed colour is one whole change, as a drag is. Unchanged text (the
+    // shown colour, rounded to hex) changes nothing.
+    void applyHex() {
+        const auto digits = hex.getText().trim().removeCharacters("#").toUpperCase();
+        if (digits.length() != 6 || digits == shownHex) {
+            showHex();
+            return;
+        }
+        const auto colour = juce::Colour::fromString("ff" + digits);
+        const Rgb typed {colour.getFloatRed(), colour.getFloatGreen(), colour.getFloatBlue()};
+        if (onBegin) { onBegin(); }
+        setRgb(typed);
+        if (onChange) { onChange(typed); }
+        if (onEnd) { onEnd(); }
+        hex.selectAll();
+    }
+    juce::TextEditor hex;
+    juce::String shownHex;
     double hue = 0, saturation = 0, brightness = 1;
     Part part = Part::none;
 };
