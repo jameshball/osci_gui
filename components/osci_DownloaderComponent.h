@@ -33,6 +33,10 @@ public:
     bool isDownloading() const { return task != nullptr && !task->isFinished(); }
     
     std::function<void()> onSuccessfulDownload;
+    // Both called on the message thread: progress as a fraction, or -1 while the size is unknown,
+    // and a download that failed (including one that never connected).
+    std::function<void(double)> onProgress;
+    std::function<void()> onFailedDownload;
 
 private:
     
@@ -44,6 +48,9 @@ private:
     std::unique_ptr<DownloaderThread> downloader;
     
     bool uncompressOnFinish = false;
+    int reportedPercent = -1;
+
+    void report(std::function<void(DownloaderComponent&)> call);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DownloaderComponent)
 };

@@ -21,8 +21,10 @@ void DownloaderComponent::run() {
     while (!threadShouldExit()) {
         {
             juce::CriticalSection::ScopedTryLockType lock(taskLock);
-            if (lock.isLocked() && task != nullptr) {
-                if (task->isFinished()) {
+            if (lock.isLocked()) {
+                // JUCE gives no task at all when it cannot connect.
+                const auto connectionFailed = task == nullptr && !downloader->isThreadRunning();
+                if (connectionFailed || (task != nullptr && task->isFinished())) {
                     break;
                 }
             }
@@ -33,8 +35,8 @@ void DownloaderComponent::run() {
 }
 
 void DownloaderComponent::threadComplete() {
-    bool error = task->hadError();
-    if (uncompressOnFinish && task->isFinished() && !error) {
+    bool error = task == nullptr || task->hadError() || !task->isFinished();
+    if (uncompressOnFinish && !error) {
         juce::FileInputStream input(file);
         juce::GZIPDecompressorInputStream decompressedInput(&input, false, juce::GZIPDecompressorInputStream::gzipFormat);
         juce::File uncompressedFile = file.getSiblingFile(file.getFileNameWithoutExtension());
@@ -51,12 +53,22 @@ void DownloaderComponent::threadComplete() {
     if (error) {
         file.deleteFile();
         progress_.showError("Download failed");
+        report([](DownloaderComponent& self) { if (self.onFailedDownload != nullptr) { self.onFailedDownload(); } });
     } else {
         if (onSuccessfulDownload != nullptr) {
             onSuccessfulDownload();
         }
         progress_.showSuccess(file.getFileName() + " downloaded!");
     }
+}
+
+void DownloaderComponent::report(std::function<void(DownloaderComponent&)> call) {
+    juce::Component::SafePointer<DownloaderComponent> self(this);
+    juce::MessageManager::callAsync([self, call = std::move(call)] {
+        if (self != nullptr) {
+            call(*self);
+        }
+    });
 }
 
 void DownloaderComponent::resized() {
@@ -68,17 +80,19 @@ void DownloaderComponent::finished(juce::URL::DownloadTask* task, bool success) 
 }
 
 void DownloaderComponent::progress(juce::URL::DownloadTask* task, juce::int64 bytesDownloaded, juce::int64 totalLength) {
-    if (totalLength <= 0) {
-        progress_.setProgress(-1.0);
-        return;
-    }
-    const double fraction = (double) bytesDownloaded / (double) totalLength;
     // Reserve the last 10% for post-download decompression so the bar doesn't
     // sit at 100% while we're still working.
-    progress_.setProgress(uncompressOnFinish ? fraction * 0.9 : fraction);
+    const double fraction = totalLength <= 0 ? -1.0 : (uncompressOnFinish ? 0.9 : 1.0) * (double) bytesDownloaded / (double) totalLength;
+    progress_.setProgress(fraction);
+    const int percent = fraction < 0.0 ? -1 : (int) (fraction * 100.0);
+    if (percent != reportedPercent) {
+        reportedPercent = percent;
+        report([fraction](DownloaderComponent& self) { if (self.onProgress != nullptr) { self.onProgress(fraction); } });
+    }
 }
 
 void DownloaderComponent::download() {
+    reportedPercent = -2;
     progress_.reset();
     progress_.setStatus("Downloading...");
     progress_.setProgress(-1.0);
