@@ -387,7 +387,9 @@ private:
         parent.addAndMakeVisible(*rawOverlay);
         rawOverlay->setBounds(parent.getLocalBounds());
         rawOverlay->toFront(false);
-        rawOverlay->grabKeyboardFocus();
+        if (rawOverlay->isShowing()) {
+            rawOverlay->grabKeyboardFocus();
+        }
     }
 
     class ImageLayer final : public juce::Component {

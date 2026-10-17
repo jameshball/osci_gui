@@ -19,10 +19,13 @@
 #include "components/osci_GridItemComponent.cpp"
 #include "components/osci_GridComponent.cpp"
 #include "components/osci_CardComponent.cpp"
+#include "components/osci_MetricCardComponent.cpp"
 #include "components/osci_ColourSwatchComponent.cpp"
 #include "components/osci_CustomTooltipWindow.cpp"
 #include "components/osci_DownloaderComponent.cpp"
+#if OSCI_GUI_ENABLE_OSCI_PARAMETERS
 #include "components/osci_VolumeComponent.cpp"
+#endif
 #include "components/list/osci_VListBox.cpp"
 #include "components/list/osci_ComponentList.cpp"
 #include "components/list/osci_DraggableListBox.cpp"
