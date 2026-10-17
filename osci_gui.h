@@ -81,6 +81,8 @@
 #include "components/osci_CustomTooltipWindow.h"
 #include "components/osci_ScrollFadeOverlay.h"
 #include "components/osci_ScrollFadeViewport.h"
+#include "components/osci_ListBoxScrollFades.h"
+#include "components/osci_ClickAwayUnfocuser.h"
 #include "components/osci_OverlayComponent.h"
 #include "components/osci_CardComponent.h"
 #include "components/osci_ColourSwatchComponent.h"

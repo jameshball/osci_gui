@@ -68,6 +68,9 @@ public:
     std::function<void()> onDismissRequested;
     bool lightweight = false;
 
+    // The panel's fill, for anything inside that blends into it.
+    static juce::Colour panelColour() { return Colours::veryDark().brighter (0.015f); }
+
     static OverlayComponent* show(juce::Component& parent, std::unique_ptr<OverlayComponent> overlay) {
         jassert(overlay != nullptr);
 
@@ -189,6 +192,17 @@ public:
         closeOverlayButton.setVisible (dismissible);
     }
 
+    // A click outside closes the overlay even while one of its text fields
+    // is focused: for a search field, where nothing typed would be lost.
+    void setDismissedByClickWhileTyping (bool shouldDismiss) {
+        dismissWhileTyping = shouldDismiss;
+    }
+
+    // Whether a click outside the panel closes it, with no button of its own.
+    void setDismissedByClickOutside (bool shouldDismiss) {
+        dismissedByClickOutside = shouldDismiss;
+    }
+
     void paint (juce::Graphics& g) override {
         juce::ignoreUnused (g);
     }
@@ -253,12 +267,12 @@ public:
     }
 
     void mouseDown (const juce::MouseEvent& event) override {
-        if (!dismissible || panelBounds.contains (event.getPosition())) {
+        if (!(dismissible || dismissedByClickOutside) || panelBounds.contains (event.getPosition())) {
             return;
         }
 
         auto* focused = juce::Component::getCurrentlyFocusedComponent();
-        if (focused != nullptr) {
+        if (focused != nullptr && !dismissWhileTyping) {
             const auto focusedTextEditor = dynamic_cast<juce::TextEditor*> (focused);
             if (focusedTextEditor != nullptr && (focused == this || isParentOf (focused))) {
                 return;
@@ -618,7 +632,7 @@ private:
     void paintPanelBody (juce::Graphics& g, juce::Rectangle<float> panelFloat) {
         const auto cornerRadius = 12.0f;
 
-        g.setColour (Colours::veryDark().brighter (0.015f));
+        g.setColour (panelColour());
         g.fillRoundedRectangle (panelFloat, cornerRadius);
 
         g.setColour (Colours::neutralStroke (0.24f));
@@ -738,7 +752,7 @@ private:
     void refreshThemeColours() {
         contentViewport.setColour (juce::ScrollBar::thumbColourId, Colours::grey());
         contentViewport.setColour (juce::ScrollBar::trackColourId, Colours::transparent());
-        contentViewport.setColour (scrollFadeOverlayBackgroundColourId, Colours::veryDark().brighter (0.015f));
+        contentViewport.setColour (scrollFadeOverlayBackgroundColourId, panelColour());
         overlayTitleLabel.setColour (juce::Label::textColourId, Colours::text());
         closeOverlayButton.setColours (Colours::textMuted(), Colours::text());
         resetPanelShadowCache();
@@ -939,6 +953,8 @@ private:
     juce::Label overlayTitleLabel;
     CloseButton closeOverlayButton;
     bool dismissible = true;
+    bool dismissWhileTyping = false;
+    bool dismissedByClickOutside = false;
     bool reserveHeaderSpace = true;
     bool presentationStarted = false;
     bool presentationScheduled = false;

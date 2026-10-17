@@ -15,7 +15,6 @@ public:
         setTitle("Colour picker");
         hex.setName("Colour hex");
         hex.setTitle("Colour hex");
-        hex.setTooltip("The colour as hex: type or paste one, Return applies");
         hex.setInputRestrictions(7, "#0123456789abcdefABCDEF");
         hex.onReturnKey = [this] { applyHex(); };
         hex.onFocusLost = [this] { applyHex(); };
