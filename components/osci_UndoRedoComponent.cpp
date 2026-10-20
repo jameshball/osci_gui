@@ -17,6 +17,8 @@ UndoRedoComponent::UndoRedoComponent(juce::UndoManager& undoManagerToUse,
 
     undoButton.onClick = [this] { undo(); };
     redoButton.onClick = [this] { redo(); };
+    undoButton.onPopupMenu = [this] { showUndoHistory(undoManager, false, undoButton, [this] { refresh(); }); };
+    redoButton.onPopupMenu = [this] { showUndoHistory(undoManager, true, redoButton, [this] { refresh(); }); };
 
     lookAndFeelChanged();
     refresh();
@@ -44,8 +46,10 @@ void UndoRedoComponent::refresh() {
     auto undoDesc = undoManager.getUndoDescription();
     actionLabel.setText(undoDesc.isNotEmpty() ? "Undo " + undoDesc : "", juce::dontSendNotification);
 
+    // Right-click lists the steps, so several go at once.
+    undoButton.setTooltip((undoDesc.isNotEmpty() ? "Undo " + undoDesc : juce::String("Undo")) + (undoManager.canUndo() ? " (right-click for history)" : ""));
     auto redoDesc = undoManager.getRedoDescription();
-    redoButton.setTooltip(redoDesc.isNotEmpty() ? "Redo " + redoDesc : "Redo");
+    redoButton.setTooltip((redoDesc.isNotEmpty() ? "Redo " + redoDesc : juce::String("Redo")) + (undoManager.canRedo() ? " (right-click for history)" : ""));
 }
 
 int UndoRedoComponent::getPreferredWidth() const {

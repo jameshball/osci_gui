@@ -22,8 +22,9 @@ private:
     void timerCallback() override;
 
     juce::UndoManager& undoManager;
-    SvgButton undoButton;
-    SvgButton redoButton;
+    // Right-clicked, each lists the steps it would take, to go back (or on) several at once.
+    WithPopupMenu<SvgButton> undoButton;
+    WithPopupMenu<SvgButton> redoButton;
     juce::Label actionLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(UndoRedoComponent)

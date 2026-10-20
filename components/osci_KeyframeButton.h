@@ -4,26 +4,13 @@ namespace osci {
 
 // A compact keyframe toggle: outlined when animated, filled on a key; legible
 // at small row sizes.
-class KeyframeButton : public juce::Button {
+// A right-click (or Ctrl-click) calls onPopupMenu, when set, instead of
+// toggling: a menu of what else can be done with the keys.
+class KeyframeButton : public WithPopupMenu<juce::Button> {
 public:
     enum class State { unanimated, animated, keyed };
     enum ColourIds { keyColourId = 0x2f32000 };
-    KeyframeButton() : juce::Button("Keyframe") { setColour(keyColourId, juce::Colour(0xff72de98)); }
-
-    // Called on a right-click (or Ctrl-click), instead of toggling, when set:
-    // a menu of what else can be done with the keys.
-    std::function<void()> onPopupMenu;
-    void mouseDown(const juce::MouseEvent& event) override {
-        if (event.mods.isPopupMenu() && onPopupMenu) {
-            onPopupMenu();
-            return;
-        }
-        juce::Button::mouseDown(event);
-    }
-    void mouseUp(const juce::MouseEvent& event) override {
-        if (event.mods.isPopupMenu() && onPopupMenu) { return; }
-        juce::Button::mouseUp(event);
-    }
+    KeyframeButton() : WithPopupMenu<juce::Button>("Keyframe") { setColour(keyColourId, juce::Colour(0xff72de98)); }
 
     void setState(State value) {
         if (state != value) {

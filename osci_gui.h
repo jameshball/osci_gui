@@ -62,6 +62,8 @@
 #include "components/osci_SvgButton.h"
 #include "components/osci_CloseButton.h"
 #include "components/osci_NotificationComponent.h"
+#include "components/osci_WithPopupMenu.h"
+#include "components/osci_UndoHistory.h"
 #include "components/osci_UndoRedoComponent.h"
 #include "components/osci_Reveal.h"
 #include "components/osci_SwitchButton.h"
