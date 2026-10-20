@@ -11,6 +11,7 @@
 
 #include "lookandfeel/osci_LookAndFeel.cpp"
 #include "lookandfeel/osci_OverlayLookAndFeel.cpp"
+#include "components/osci_CallOut.cpp"
 #include "components/osci_UndoHistory.cpp"
 #include "components/osci_UndoRedoComponent.cpp"
 #include "components/osci_Reveal.cpp"
@@ -34,3 +35,6 @@
 #include "visualiser/osci_OpenGLTextureView.cpp"
 #include "visualiser/osci_VisualiserRenderer.cpp"
 #endif
+
+// Last: it includes platform headers.
+#include "components/osci_KeyPositions.cpp"
