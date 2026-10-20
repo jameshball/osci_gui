@@ -15,6 +15,23 @@
 namespace osci {
 
 namespace {
+#if JUCE_WINDOWS
+// Scan codes are positions; the layout maps them to keys and characters.
+UINT virtualKeyAt(KeyPosition position) {
+    const auto scanCode = [position]() -> UINT {
+        switch (position) {
+            case KeyPosition::w: return 0x11;
+            case KeyPosition::a: return 0x1e;
+            case KeyPosition::s: return 0x1f;
+            case KeyPosition::d: return 0x20;
+            case KeyPosition::q: return 0x10;
+            case KeyPosition::e: return 0x12;
+        }
+        return 0x11;
+    }();
+    return MapVirtualKeyW(scanCode, MAPVK_VSC_TO_VK);
+}
+#endif
 juce::juce_wchar usLetter(KeyPosition position) {
     switch (position) {
         case KeyPosition::w: return 'W';
@@ -28,7 +45,10 @@ juce::juce_wchar usLetter(KeyPosition position) {
 }
 }
 
-juce::juce_wchar keyAtPosition(KeyPosition position) {
+namespace {
+// What the key at `position` types on the current layout, as typed (not
+// upper-cased); 0 when that can't be asked or isn't one character.
+juce::juce_wchar typedAt(KeyPosition position) {
     juce::juce_wchar typed = 0;
 #if JUCE_MAC
     // The virtual key codes are positions (kVK_ANSI_W is where W sits on a US board).
@@ -44,7 +64,8 @@ juce::juce_wchar keyAtPosition(KeyPosition position) {
         return 13;
     }();
     // An event made but never posted asks the current layout what the key types.
-    if (auto event = CGEventCreateKeyboardEvent(nullptr, code, true)) {
+    auto event = CGEventCreateKeyboardEvent(nullptr, code, true);
+    if (event != nullptr) {
         UniChar text[4] {};
         UniCharCount length = 0;
         CGEventKeyboardGetUnicodeString(event, 4, &length, text);
@@ -52,28 +73,31 @@ juce::juce_wchar keyAtPosition(KeyPosition position) {
         if (length == 1) { typed = static_cast<juce::juce_wchar>(text[0]); }
     }
 #elif JUCE_WINDOWS
-    // Scan codes are positions; the layout maps them to keys and characters.
-    const auto scanCode = [position]() -> UINT {
-        switch (position) {
-            case KeyPosition::w: return 0x11;
-            case KeyPosition::a: return 0x1e;
-            case KeyPosition::s: return 0x1f;
-            case KeyPosition::d: return 0x20;
-            case KeyPosition::q: return 0x10;
-            case KeyPosition::e: return 0x12;
-        }
-        return 0x11;
-    }();
-    const auto virtualKey = MapVirtualKeyW(scanCode, MAPVK_VSC_TO_VK);
-    typed = static_cast<juce::juce_wchar>(MapVirtualKeyW(virtualKey, MAPVK_VK_TO_CHAR) & 0x7fff);
+    typed = static_cast<juce::juce_wchar>(MapVirtualKeyW(virtualKeyAt(position), MAPVK_VK_TO_CHAR) & 0x7fff);
+#else
+    juce::ignoreUnused(position);
 #endif
-    // Only a letter is usable as a held key; anything else (or another
-    // platform) falls back to the US letter.
+    return typed;
+}
+}
+
+juce::juce_wchar keyAtPosition(KeyPosition position) {
+    const auto typed = typedAt(position);
+    // A letter to show; anything else (or another platform) shows the US letter.
     return juce::CharacterFunctions::isLetter(typed) ? juce::CharacterFunctions::toUpperCase(typed) : usLetter(position);
 }
 
 bool isKeyPositionDown(KeyPosition position) {
-    return juce::KeyPress::isKeyCurrentlyDown(static_cast<int>(keyAtPosition(position)));
+#if JUCE_WINDOWS
+    // Windows says which key is down by its virtual key, whatever it types.
+    return (GetAsyncKeyState(static_cast<int>(virtualKeyAt(position))) & 0x8000) != 0;
+#else
+    // JUCE tracks keys held by what they type: the layout's letter as typed,
+    // or the US letter where the layout's can't be had.
+    const auto typed = typedAt(position);
+    const auto letter = juce::CharacterFunctions::isLetter(typed) ? typed : usLetter(position);
+    return juce::KeyPress::isKeyCurrentlyDown(static_cast<int>(letter)) || juce::KeyPress::isKeyCurrentlyDown(static_cast<int>(juce::CharacterFunctions::toUpperCase(letter)));
+#endif
 }
 
 } // namespace osci

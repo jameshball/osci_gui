@@ -20,13 +20,18 @@ private:
         delete this;
     }
     void componentVisibilityChanged(juce::Component& component) override {
-        // A window hidden (minimised, closed to the tray) takes its call-out with it.
+        // A window hidden (closed to the tray) takes its call-out with it.
         if (&component == top.getComponent() && !component.isShowing()) { close(); }
     }
+    // At once, not later: what it shows may call back into the editor going away.
     void close() {
-        if (box == nullptr) { return; }
-        box->setLookAndFeel(nullptr);
-        box->dismiss();
+        auto* callOut = box.getComponent();
+        if (callOut == nullptr) { return; }
+        callOut->removeComponentListener(this);
+        box = nullptr;
+        callOut->setLookAndFeel(nullptr);
+        if (callOut->isCurrentlyModal(false)) { callOut->exitModalState(0); }
+        delete callOut;
     }
 
     juce::Component::SafePointer<juce::CallOutBox> box;
