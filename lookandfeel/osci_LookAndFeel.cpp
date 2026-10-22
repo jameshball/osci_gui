@@ -884,7 +884,7 @@ void LookAndFeel::drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int
 
     if (isHighlighted && isActive) {
         // Vital-style: accent colour highlight
-        g.setColour(Colours::accentColor().withAlpha(0.6f));
+        g.setColour(findColour(juce::PopupMenu::highlightedBackgroundColourId).withAlpha(0.6f));
         g.fillRoundedRectangle(r.toFloat(), itemRadius);
     }
 
