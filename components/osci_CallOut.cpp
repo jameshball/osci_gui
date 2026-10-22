@@ -3,8 +3,8 @@
 namespace osci {
 
 namespace {
-// A call-out in a window of its own goes when what it points at does (and
-// with it the editor whose look it borrowed), or when its window hides.
+// A call-out goes when what it points at does (and with it the editor whose
+// look it borrowed), or when its window hides.
 class CallOutOwner final : private juce::ComponentListener {
 public:
     CallOutOwner(juce::CallOutBox& callOut, juce::Component& anchor) : box(&callOut), host(&anchor), top(anchor.getTopLevelComponent()) {
@@ -41,6 +41,8 @@ private:
 
 juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available) {
     auto* top = host.getTopLevelComponent();
+    // Either way it sits outside host, so it borrows host's look, and goes
+    // before host does.
     if (popupsNeedOwnWindow()) {
         const auto screenArea = host.localAreaToGlobal(area);
         auto& box = juce::CallOutBox::launchAsynchronously(std::move(content), screenArea, nullptr);
@@ -51,7 +53,9 @@ juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::
     }
     const auto localArea = top->getLocalArea(&host, area);
     auto& box = juce::CallOutBox::launchAsynchronously(std::move(content), localArea, top);
+    box.setLookAndFeel(&host.getLookAndFeel());
     if (!available.isEmpty()) { box.updatePosition(localArea, top->getLocalArea(&host, available)); }
+    new CallOutOwner(box, host);
     return box;
 }
 
