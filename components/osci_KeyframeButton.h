@@ -29,7 +29,8 @@ public:
         diamond.lineTo(centre.x, centre.y + radius);
         diamond.lineTo(centre.x - radius, centre.y);
         diamond.closeSubPath();
-        const auto alpha = isEnabled() ? (highlighted || down ? 1.0f : 0.8f) : 0.25f;
+        const auto rest = state == State::unanimated ? restAlpha : 0.8f;
+        const auto alpha = isEnabled() ? (highlighted || down ? 1.0f : rest) : 0.25f;
         g.setColour((state == State::unanimated ? Colours::text() : findColour(keyColourId)).withAlpha(alpha));
         if (state == State::keyed || down) {
             g.fillPath(diamond);
@@ -40,6 +41,10 @@ public:
             g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1), 3, 1);
         }
     }
+
+    // How bright a diamond with no keys is at rest (hovered, it is full).
+    // A long column of them can recede so the animated ones stand out.
+    float restAlpha = 0.8f;
 
 private:
     State state = State::unanimated;
