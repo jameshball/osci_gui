@@ -16,9 +16,9 @@ constexpr bool popupsNeedOwnWindow() {
 
 // Opens `content` in a call-out box pointing at `area` of `host`, kept within
 // `available` (in host's coordinates; the whole top-level window when empty).
-// It sits in host's top-level component, or, where popupsNeedOwnWindow(), in
-// a window of its own above it; either way styled as host is and closed with it.
-// Message thread only.
-juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available = {});
+// It sits in `parent` (host's top-level component when null), or, where
+// popupsNeedOwnWindow(), in a window of its own above it; either way styled
+// as host is and closed with it. Message thread only.
+juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available = {}, juce::Component* parent = nullptr);
 
 } // namespace osci

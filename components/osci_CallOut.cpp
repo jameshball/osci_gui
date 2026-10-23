@@ -39,8 +39,8 @@ private:
 };
 }
 
-juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available) {
-    auto* top = host.getTopLevelComponent();
+juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available, juce::Component* parent) {
+    auto* top = parent != nullptr ? parent : host.getTopLevelComponent();
     // Either way it sits outside host, so it borrows host's look, and goes
     // before host does.
     if (popupsNeedOwnWindow()) {
