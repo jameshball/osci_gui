@@ -172,24 +172,8 @@ void VisualiserRenderer::runTask(const juce::AudioBuffer<float>& buffer) {
 
     // this just triggers a repaint
     openGLContext.triggerRepaint();
-    // wait for rendering on the OpenGLRenderer thread to complete
-    if (!renderingSemaphore.acquire()) {
-        juce::String info;
-        info << "=== Rendering semaphore acquisition timed out ===" << juce::newLine;
-        info << "Time: " << juce::Time::getCurrentTime().toString(true, true, true, true) << juce::newLine;
-        info << "Thread: " << getThreadName() << " (ID: " << juce::String::toHexString((juce::pointer_sized_int)juce::Thread::getCurrentThreadId()) << ")" << juce::newLine;
-        info << "Semaphore available: " << juce::String((int)renderingSemaphore.available()) << juce::newLine;
-        info << "OpenGL context active: " << (openGLContext.isActive() ? "yes" : "no") << juce::newLine;
-        info << "OpenGL context attached: " << (openGLContext.isAttached() ? "yes" : "no") << juce::newLine;
-        info << "sampleBufferCount: " << juce::String(sampleBufferCount.load()) << juce::newLine;
-        info << "prevSampleBufferCount: " << juce::String(prevSampleBufferCount) << juce::newLine;
-        info << "Component visible: " << (isVisible() ? "yes" : "no") << juce::newLine;
-        info << "Component size: " << juce::String(getWidth()) << "x" << juce::String(getHeight()) << juce::newLine;
-        info << "--- Stack trace (waiting thread) ---" << juce::newLine;
-        info << juce::SystemStats::getStackBacktrace() << juce::newLine;
-        info << "=== End semaphore timeout info ===" << juce::newLine;
-        juce::Logger::writeToLog(info);
-    }
+    // wait for rendering on the OpenGLRenderer thread to complete (it times out while the view is hidden)
+    renderingSemaphore.acquire();
 }
 
 void VisualiserRenderer::processInputBuffer(const juce::AudioBuffer<float>& buffer) {
@@ -393,7 +377,12 @@ void VisualiserRenderer::upsampleSamples(RenderMode mode) {
             addChannel(gResampler, gSamples, smoothedGSamples);
             addChannel(bResampler, bSamples, smoothedBSamples);
         }
-        const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size());
+        // RGB carries exact blanking and inherited-colour sentinels. Preserve
+        // these boundaries with synchronized linear geometry/colour near them;
+        // continuous strokes and XY/XYZ retain Lanczos reconstruction.
+        const VisualiserResampler::ControlSignalGuard rgbGuard {numChannels >= 3 ? numChannels - 3 : 0, 3};
+        const auto count = VisualiserResampler::processChannels(channels.data(), numChannels, ySamples.size(),
+            VisualiserResampler::Interpolation::lanczos, mode == RenderMode::XYRGB ? &rgbGuard : nullptr);
         for (size_t channel = 0; channel < numChannels; ++channel) {
             outputs[channel]->resize(count);
         }
@@ -1079,7 +1068,7 @@ void VisualiserRenderer::drawLine(const std::vector<float> &xPoints, const std::
     glBindTexture(GL_TEXTURE_2D, screenTexture.id);
     lineShader->setUniform("uScreen", 0);
     lineShader->setUniform("uSize", (GLfloat)parameters.getFocus());
-    lineShader->setUniform("uGain", 450.0f / 512.0f);
+    lineShader->setUniform("uGain", VisualiserGeometry::signalGain);
     lineShader->setUniform("uInvert", 1.0f);
     juce::Colour lineColour = juce::Colour::fromHSV((float)(parameters.getHue() / 360.0f), 1.0f, 1.0f, 1.0f);
     lineShader->setUniform("uLineColor", lineColour.getFloatRed(), lineColour.getFloatGreen(), lineColour.getFloatBlue());

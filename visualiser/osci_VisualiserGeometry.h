@@ -120,6 +120,10 @@ namespace VisualiserGeometry {
         return size.width == size.height;
     }
 
+    // How much of the canvas a unit of signal spans: the screen shows a
+    // little past -1 to 1 (to 1 / signalGain), so a beam at the edge is whole.
+    inline constexpr float signalGain = 450.0f / 512.0f;
+
     inline juce::Point<float> getWorldToClipScale(VisualiserRenderSize size) {
         const float aspect = static_cast<float>(getAspectRatio(size));
         if (aspect >= 1.0f) {
