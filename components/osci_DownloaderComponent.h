@@ -49,6 +49,8 @@ private:
     
     bool uncompressOnFinish = false;
     int reportedPercent = -1;
+    // Made here, on the message thread: the download threads only copy it.
+    juce::Component::SafePointer<DownloaderComponent> safeThis { this };
 
     void report(std::function<void(DownloaderComponent&)> call);
 

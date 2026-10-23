@@ -35,6 +35,3 @@
 #include "visualiser/osci_OpenGLTextureView.cpp"
 #include "visualiser/osci_VisualiserRenderer.cpp"
 #endif
-
-// Last: it includes platform headers.
-#include "components/osci_KeyPositions.cpp"

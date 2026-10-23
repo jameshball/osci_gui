@@ -63,8 +63,7 @@ void DownloaderComponent::threadComplete() {
 }
 
 void DownloaderComponent::report(std::function<void(DownloaderComponent&)> call) {
-    juce::Component::SafePointer<DownloaderComponent> self(this);
-    juce::MessageManager::callAsync([self, call = std::move(call)] {
+    juce::MessageManager::callAsync([self = safeThis, call = std::move(call)] {
         if (self != nullptr) {
             call(*self);
         }
