@@ -39,22 +39,12 @@ private:
 };
 }
 
-juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available, juce::Component* parent) {
-    auto* top = parent != nullptr ? parent : host.getTopLevelComponent();
-    // Either way it sits outside host, so it borrows host's look, and goes
-    // before host does.
-    if (popupsNeedOwnWindow()) {
-        const auto screenArea = host.localAreaToGlobal(area);
-        auto& box = juce::CallOutBox::launchAsynchronously(std::move(content), screenArea, nullptr);
-        box.setLookAndFeel(&host.getLookAndFeel());
-        box.updatePosition(screenArea, available.isEmpty() ? top->getScreenBounds() : host.localAreaToGlobal(available));
-        new CallOutOwner(box, host);
-        return box;
-    }
-    const auto localArea = top->getLocalArea(&host, area);
-    auto& box = juce::CallOutBox::launchAsynchronously(std::move(content), localArea, top);
+juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available) {
+    const auto screenArea = host.localAreaToGlobal(area);
+    auto& box = juce::CallOutBox::launchAsynchronously(std::move(content), screenArea, nullptr);
+    // Outside host, so it borrows host's look, and goes before host does.
     box.setLookAndFeel(&host.getLookAndFeel());
-    if (!available.isEmpty()) { box.updatePosition(localArea, top->getLocalArea(&host, available)); }
+    box.updatePosition(screenArea, available.isEmpty() ? host.getTopLevelComponent()->getScreenBounds() : host.localAreaToGlobal(available));
     new CallOutOwner(box, host);
     return box;
 }

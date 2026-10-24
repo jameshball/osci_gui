@@ -274,6 +274,11 @@ public:
     static void applyColours (juce::LookAndFeel& lookAndFeel);
     static void drawComboBoxStyle (juce::Graphics& g, int width, int height, juce::ComboBox& box, float cornerRadius = Colours::kPillRadius);
     static void positionComboBoxTextStyle (juce::LookAndFeel& lookAndFeel, juce::ComboBox& box, juce::Label& label);
+    // A combo's label covers most of the box, so the box only sees the pointer
+    // leave when it crosses the thin edge around the label; a quick move skips
+    // that edge and leaves the hover outline painted. The label's enter and
+    // exit repaint the whole box instead.
+    static void repaintComboOnLabelHover (juce::Label& label);
 
     static const int RECT_RADIUS = 5;
 

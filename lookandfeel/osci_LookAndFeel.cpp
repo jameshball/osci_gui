@@ -294,6 +294,22 @@ void LookAndFeel::positionComboBoxTextStyle(juce::LookAndFeel& lookAndFeel, juce
     label.setMouseCursor(juce::MouseCursor::PointingHandCursor);
     label.setBounds(1, 1, box.getWidth() - 15, box.getHeight() - 2);
     label.setFont(lookAndFeel.getComboBoxFont(box));
+    repaintComboOnLabelHover(label);
+}
+
+void LookAndFeel::repaintComboOnLabelHover(juce::Label& label) {
+    struct Repainter : juce::MouseListener {
+        void mouseEnter(const juce::MouseEvent& event) override { repaintParent(event); }
+        void mouseExit(const juce::MouseEvent& event) override { repaintParent(event); }
+        static void repaintParent(const juce::MouseEvent& event) {
+            if (auto* parent = event.eventComponent->getParentComponent()) {
+                parent->repaint();
+            }
+        }
+    };
+    static Repainter repainter;
+    // Adding a listener twice is a no-op, so this is safe on every layout.
+    label.addMouseListener(&repainter, false);
 }
 
 void LookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label) {

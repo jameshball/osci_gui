@@ -2,23 +2,12 @@
 
 namespace osci {
 
-// Whether a popup must be a window of its own to show over an OpenGL view.
-// On Windows and Linux an OpenGL view is a native child window that paints
-// over any component placed on top of it, so a popup inside the editor would
-// be hidden where it overlaps one (the Scope, the visualiser).
-constexpr bool popupsNeedOwnWindow() {
-#if JUCE_WINDOWS || JUCE_LINUX || JUCE_BSD
-    return true;
-#else
-    return false;
-#endif
-}
-
 // Opens `content` in a call-out box pointing at `area` of `host`, kept within
-// `available` (in host's coordinates; the whole top-level window when empty).
-// It sits in `parent` (host's top-level component when null), or, where
-// popupsNeedOwnWindow(), in a window of its own above it; either way styled
-// as host is and closed with it. Message thread only.
-juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available = {}, juce::Component* parent = nullptr);
+// `available` (in host's coordinates; the whole top-level window when empty),
+// in a window of its own above host's: never painted over a visualiser, whose
+// picture is a native surface (an OpenGL child window on Windows and Linux, a
+// surface beneath the window on macOS) that painting over can't keep in step
+// with. Styled as host is and closed with it. Message thread only.
+juce::CallOutBox& launchCallOut(std::unique_ptr<juce::Component> content, juce::Component& host, juce::Rectangle<int> area, juce::Rectangle<int> available = {});
 
 } // namespace osci

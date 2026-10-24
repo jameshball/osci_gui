@@ -108,6 +108,7 @@ void OverlayLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label&
     label.setMouseCursor (juce::MouseCursor::PointingHandCursor);
     label.setBounds (10, 1, juce::jmax (1, box.getWidth() - 34), box.getHeight() - 2);
     label.setFont (getComboBoxFont (box));
+    repaintComboOnLabelHover (label);
 }
 
 void OverlayLookAndFeel::drawButtonBackground (juce::Graphics& g,
